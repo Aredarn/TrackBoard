@@ -1,0 +1,56 @@
+name: trackboard
+
+services:
+  db:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-trackboard}
+      POSTGRES_USER: ${POSTGRES_USER:-trackboard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-trackboard}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trackboard} -d ${POSTGRES_DB:-trackboard}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Not consumed yet — the caching layer lands in phase 4.
+  cache:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - cache-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      # Double underscore is the .NET config-provider separator for nested keys.
+      ConnectionStrings__Default: >-
+        Host=db;Port=5432;Database=${POSTGRES_DB:-trackboard};Username=${POSTGRES_USER:-trackboard};Password=${POSTGRES_PASSWORD:-trackboard}
+      # No default: the app refuses to start without a 256-bit key, which is the
+      # intended behaviour rather than silently falling back to a known value.
+      Jwt__Secret: ${JWT_SECRET:?set JWT_SECRET in .env - generate with: openssl rand -base64 48}
+    ports:
+      - "8080:8080"
+
+volumes:
+  db-data:
+  cache-data:

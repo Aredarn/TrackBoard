@@ -1,57 +1,46 @@
-﻿namespace TrackBoard.Entities;
+namespace TrackBoard.Entities;
 
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-
-[Table("vehicle_information_data")]
-public class VehicleInformationData
+public class Vehicle : BaseEntity
 {
-    [Key]
-    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    public long VehicleId { get; set; }
+    /// <summary>Owning driver. Ownership is enforced in the service layer.</summary>
+    public Guid OwnerId { get; set; }
 
-    [Required]
-    [MaxLength(100)]
+    public User Owner { get; set; } = null!;
+
     public string Manufacturer { get; set; } = string.Empty;
 
-    [Required]
-    [MaxLength(100)]
     public string Model { get; set; } = string.Empty;
 
     public int Year { get; set; }
 
-    [Required]
-    [MaxLength(50)]
     public string EngineType { get; set; } = string.Empty;
 
     public int Horsepower { get; set; }
 
-    public int? Torque { get; set; } // Nm
+    /// <summary>Nm.</summary>
+    public int? Torque { get; set; }
 
-    public double Weight { get; set; } // kg
+    /// <summary>kg.</summary>
+    public double Weight { get; set; }
 
-    public double? TopSpeed { get; set; } // km/h
+    /// <summary>km/h.</summary>
+    public double? TopSpeed { get; set; }
 
-    public double? Acceleration { get; set; } // 0-100 km/h
+    /// <summary>Seconds, 0-100 km/h.</summary>
+    public double? Acceleration { get; set; }
 
-    [Required]
-    [MaxLength(20)]
     public string Drivetrain { get; set; } = string.Empty;
 
-    [Required]
-    [MaxLength(20)]
     public string FuelType { get; set; } = string.Empty;
 
-    [Required]
-    [MaxLength(50)]
     public string TireType { get; set; } = string.Empty;
 
-    public double? FuelCapacity { get; set; } // liters
+    /// <summary>Litres.</summary>
+    public double? FuelCapacity { get; set; }
 
-    [Required]
-    [MaxLength(50)]
     public string Transmission { get; set; } = string.Empty;
 
-    [MaxLength(100)]
     public string? SuspensionType { get; set; }
+
+    public ICollection<Result> Results { get; set; } = [];
 }

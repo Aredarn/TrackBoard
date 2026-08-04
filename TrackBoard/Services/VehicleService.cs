@@ -1,0 +1,145 @@
+using System.Linq.Expressions;
+using Microsoft.EntityFrameworkCore;
+using TrackBoard.Auth;
+using TrackBoard.Common;
+using TrackBoard.Data;
+using TrackBoard.Dtos;
+using TrackBoard.Entities;
+using TrackBoard.Mapping;
+
+namespace TrackBoard.Services;
+
+public interface IVehicleService
+{
+    Task<PagedResult<VehicleResponse>> GetPagedAsync(PageQuery page, Guid? ownerId, CancellationToken ct);
+
+    Task<VehicleResponse?> GetByIdAsync(Guid id, CancellationToken ct);
+
+    Task<VehicleResponse> CreateAsync(Guid ownerId, CreateVehicleRequest request, CancellationToken ct);
+
+    Task<VehicleResponse> UpdateAsync(Guid id, UpdateVehicleRequest request, CancellationToken ct);
+
+    Task DeleteAsync(Guid id, CancellationToken ct);
+}
+
+public class VehicleService(TrackBoardDbContext db, IResourceAuthorizer authorizer) : IVehicleService
+{
+    private static readonly Expression<Func<Vehicle, VehicleResponse>> ToResponse =
+        v => new VehicleResponse(
+            v.Id,
+            v.OwnerId,
+            v.Owner.DisplayName,
+            v.Manufacturer,
+            v.Model,
+            v.Year,
+            v.EngineType,
+            v.Horsepower,
+            v.Torque,
+            v.Weight,
+            v.TopSpeed,
+            v.Acceleration,
+            v.Drivetrain,
+            v.FuelType,
+            v.TireType,
+            v.FuelCapacity,
+            v.Transmission,
+            v.SuspensionType,
+            v.CreatedAt,
+            v.UpdatedAt);
+
+    /// <summary>Same shape as <see cref="ToResponse"/>, for entities already in memory.</summary>
+    private static readonly Func<Vehicle, VehicleResponse> ToResponseInMemory = ToResponse.Compile();
+
+    public Task<PagedResult<VehicleResponse>> GetPagedAsync(
+        PageQuery page,
+        Guid? ownerId,
+        CancellationToken ct)
+    {
+        var query = db.Vehicles.AsNoTracking();
+
+        if (ownerId is not null)
+        {
+            query = query.Where(v => v.OwnerId == ownerId);
+        }
+
+        return query
+            .OrderBy(v => v.Manufacturer)
+            .ThenBy(v => v.Model)
+            .ThenBy(v => v.Id)
+            .Select(ToResponse)
+            .ToPagedResultAsync(page, ct);
+    }
+
+    public async Task<VehicleResponse?> GetByIdAsync(Guid id, CancellationToken ct)
+    {
+        // The entity is loaded rather than projected so the ownership handler has something
+        // to authorize against; Owner is included because the response carries its name.
+        var vehicle = await db.Vehicles
+            .AsNoTracking()
+            .Include(v => v.Owner)
+            .FirstOrDefaultAsync(v => v.Id == id, ct);
+
+        if (vehicle is null)
+        {
+            return null;
+        }
+
+        await authorizer.EnsureAsync(vehicle, ResourceOperations.Read);
+
+        return ToResponseInMemory(vehicle);
+    }
+
+    public async Task<VehicleResponse> CreateAsync(
+        Guid ownerId,
+        CreateVehicleRequest request,
+        CancellationToken ct)
+    {
+        if (!await db.Users.AnyAsync(u => u.Id == ownerId, ct))
+        {
+            throw new NotFoundException("User", ownerId);
+        }
+
+        var vehicle = VehicleMapper.ToEntity(request);
+        vehicle.OwnerId = ownerId;
+
+        db.Vehicles.Add(vehicle);
+        await db.SaveChangesAsync(ct);
+
+        return await GetByIdAsync(vehicle.Id, ct)
+            ?? throw new InvalidOperationException("Vehicle vanished immediately after insert.");
+    }
+
+    public async Task<VehicleResponse> UpdateAsync(
+        Guid id,
+        UpdateVehicleRequest request,
+        CancellationToken ct)
+    {
+        var vehicle = await db.Vehicles.FirstOrDefaultAsync(v => v.Id == id, ct)
+            ?? throw new NotFoundException("Vehicle", id);
+
+        await authorizer.EnsureAsync(vehicle, ResourceOperations.Update);
+
+        VehicleMapper.ApplyTo(request, vehicle);
+        await db.SaveChangesAsync(ct);
+
+        return await GetByIdAsync(id, ct)
+            ?? throw new InvalidOperationException("Vehicle vanished immediately after update.");
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken ct)
+    {
+        var vehicle = await db.Vehicles.FirstOrDefaultAsync(v => v.Id == id, ct)
+            ?? throw new NotFoundException("Vehicle", id);
+
+        await authorizer.EnsureAsync(vehicle, ResourceOperations.Delete);
+
+        if (await db.Results.AnyAsync(r => r.VehicleId == id, ct))
+        {
+            throw new ConflictException(
+                "This vehicle has recorded results and cannot be deleted.");
+        }
+
+        db.Vehicles.Remove(vehicle);
+        await db.SaveChangesAsync(ct);
+    }
+}
