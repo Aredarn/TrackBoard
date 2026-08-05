@@ -1,5 +1,7 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Hybrid;
+using TrackBoard.Caching;
 using TrackBoard.Common;
 using TrackBoard.Data;
 using TrackBoard.Dtos;
@@ -24,7 +26,7 @@ public interface IRaceEventService
     Task DeleteAsync(Guid id, CancellationToken ct);
 }
 
-public class RaceEventService(TrackBoardDbContext db) : IRaceEventService
+public class RaceEventService(TrackBoardDbContext db, HybridCache cache) : IRaceEventService
 {
     private static readonly Expression<Func<RaceEvent, RaceEventResponse>> ToResponse =
         e => new RaceEventResponse(
@@ -105,6 +107,8 @@ public class RaceEventService(TrackBoardDbContext db) : IRaceEventService
 
         await EnsureReferencesExist(request.SeriesId, request.CircuitId, ct);
 
+        var previousSeriesId = raceEvent.SeriesId;
+
         raceEvent.Name = request.Name;
         raceEvent.SeriesId = request.SeriesId;
         raceEvent.CircuitId = request.CircuitId;
@@ -113,6 +117,14 @@ public class RaceEventService(TrackBoardDbContext db) : IRaceEventService
         raceEvent.Status = request.Status;
 
         await db.SaveChangesAsync(ct);
+
+        // Moving an event between series changes two standings, not one.
+        await cache.RemoveByTagAsync(CacheKeys.SeriesTag(previousSeriesId), ct);
+
+        if (previousSeriesId != request.SeriesId)
+        {
+            await cache.RemoveByTagAsync(CacheKeys.SeriesTag(request.SeriesId), ct);
+        }
 
         return await GetByIdAsync(id, ct)
             ?? throw new InvalidOperationException("Race event vanished immediately after update.");
@@ -123,9 +135,14 @@ public class RaceEventService(TrackBoardDbContext db) : IRaceEventService
         var raceEvent = await db.RaceEvents.FirstOrDefaultAsync(e => e.Id == id, ct)
             ?? throw new NotFoundException("RaceEvent", id);
 
+        var seriesId = raceEvent.SeriesId;
+
         // Results cascade with the event by design, so this is not blocked.
         db.RaceEvents.Remove(raceEvent);
         await db.SaveChangesAsync(ct);
+
+        // Those cascaded results were contributing points to the standings.
+        await cache.RemoveByTagAsync(CacheKeys.SeriesTag(seriesId), ct);
     }
 
     private async Task EnsureReferencesExist(Guid seriesId, Guid circuitId, CancellationToken ct)

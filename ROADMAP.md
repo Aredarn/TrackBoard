@@ -185,16 +185,23 @@ Defects found at the start, and their current state:
 *Measure first. Target read-heavy leaderboard endpoints.*
 
 ### Caching
-- [ ] Use **`HybridCache`** (`Microsoft.Extensions.Caching.Hybrid`, .NET 9+) backed by Redis:
-  in-process L1 + Redis L2 with built-in stampede protection.
-  **[was: `@Cacheable`]** — .NET has no attribute-based caching, so caching is explicit
-  `GetOrCreateAsync(key, factory, tags)` calls inside the service. More code, more control.
-- [ ] Invalidate on write with `RemoveByTagAsync("leaderboard:{seriesId}")` from
-  `ResultService.SubmitResultAsync`. **[was: `@CacheEvict`]**
-- [ ] Pre-populate hot leaderboards on startup with a `BackgroundService` / `IHostedService`.
-  **[was: `ApplicationRunner`]**
-- [ ] Always set `Expiration` / `LocalCacheExpiration` — never cache indefinitely.
-- [ ] Cache keys must include `seriesId` and `season` to prevent cross-series pollution.
+- [x] `HybridCache` wraps `ResultService.GetLeaderboardAsync`, with Redis registered as L2
+  whenever `ConnectionStrings:Redis` is present and L1-only otherwise. Stampede protection
+  is built in: concurrent misses collapse onto one factory call.
+  **[was: `@Cacheable`]** — no attribute-based caching in .NET, so the call is explicit.
+- [x] `RemoveByTagAsync(CacheKeys.SeriesTag(seriesId))` after every write that can move the
+  standings: result submit, update and delete, plus race-event delete (results cascade with
+  it) and race-event update (moving an event between series invalidates *both*).
+  Eviction always happens after the commit, never before. **[was: `@CacheEvict`]**
+- [x] `CacheWarmupService : BackgroundService` warms the current and previous season through
+  the same cached path a request takes. Failures are logged and dropped — a warm-up problem
+  must not gate startup. **[was: `ApplicationRunner`]**
+- [x] `Expiration` (300s) and `LocalCacheExpiration` (30s) set on every entry, plus a
+  `DefaultEntryOptions` floor so a call site that passes none still cannot cache forever.
+  L1 is deliberately shorter than L2: tag eviction reaches Redis at once but cannot reach
+  another instance's in-process layer, so the short local window bounds the disagreement.
+- [x] Keys are `trackboard:v1:leaderboard:series:{id}:season:{season}` — both ids present, and
+  a version segment so a change to the cached record's shape cannot read back stale entries.
 
 ### Database
 - [ ] Log slow queries: EF Core command logging at `Information`, plus a `DbCommandInterceptor`
@@ -208,13 +215,19 @@ Defects found at the start, and their current state:
   **[was: HikariCP]** — pooling is on by default in Npgsql.
 
 ### Observability
-- [ ] 🔒 `MapHealthChecks("/health")` (liveness, anonymous) and `/health/ready` (DB + Redis,
-  authorized). Metrics via OpenTelemetry. **[was: `/actuator/health`, `/actuator/metrics`]** —
-  there is no Actuator; you assemble this yourself.
-- [ ] Instrument leaderboard endpoints with `System.Diagnostics.Metrics.Meter` histograms to
-  compare cache hit vs miss latency. **[was: `@Timed`]**
-- [ ] Log at Warning/Error in production via `appsettings.Production.json`. Consider Serilog for
-  structured logs.
+- [x] 🔒 `/health` is liveness only — no dependencies, so a database blip stops traffic being
+  routed rather than getting the process killed. `/health/ready` probes the database and a
+  real `HybridCache` round-trip. **Deviation:** readiness is anonymous, not authorized —
+  orchestrator probes cannot carry a token. Instead the body is a bare status outside
+  Development, so dependency names and failure reasons are never exposed.
+  **[was: `/actuator/health`]** — no Actuator; assembled by hand.
+  ⚠️ Metrics are exposed via `Meter` but **not** yet scraped: no OpenTelemetry exporter and no
+  `/metrics` endpoint. Nothing collects them today.
+- [x] `CacheMetrics` records `trackboard.cache.requests` and a
+  `trackboard.leaderboard.duration` histogram, both tagged `outcome=hit|miss` — the average
+  across both hides the cold-start case that actually hurts. **[was: `@Timed`]**
+- [x] `appsettings.Production.json` logs at Warning and above. Serilog not added; the built-in
+  logger is sufficient until there is somewhere to ship structured logs to.
 
 ---
 
@@ -304,13 +317,16 @@ Everything else follows the phases as written.
 | 1 · Foundation | 12 | 8 | 0 | 3 | 0 |
 | 2 · Core API | 14 | 14 | 0 | 1 | 1 |
 | 3 · Security | 18 | 16 | 8 | 0 | 0 |
-| 4 · Performance | 12 | 0 | 0 | 1 | 0 |
+| 4 · Performance | 12 | 8 | 0 | 1 | 0 |
 | 5 · Quality | 13 | 0 | 0 | 4 | 0 |
 | 6 · Open source | 13 | 0 | 0 | 0 | 0 |
-| **Total** | **82** | **38** | **8** | **9** | **1** |
+| **Total** | **82** | **46** | **8** | **9** | **1** |
 
 All 8 critical tasks are implemented and were exercised against a running server.
 
 Still open in phase 1: branch rename, licence decision, branch protection, Docker verification —
 three need repo-owner decisions, one needs Docker installed.
 Still open in phase 3: both remaining items are deployment-time actions with no target yet.
+Still open in phase 4: the whole **Database** section — slow-query interceptor, N+1 audit,
+`AsSplitQuery` review, and Npgsql pool tuning. Those want a real PostgreSQL to measure
+against, which this machine does not have.

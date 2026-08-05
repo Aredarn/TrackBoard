@@ -1,6 +1,10 @@
+using System.Diagnostics;
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Hybrid;
+using Microsoft.Extensions.Options;
 using TrackBoard.Auth;
+using TrackBoard.Caching;
 using TrackBoard.Common;
 using TrackBoard.Data;
 using TrackBoard.Dtos;
@@ -30,8 +34,22 @@ public interface IResultService
 public class ResultService(
     TrackBoardDbContext db,
     IPointsCalculator calculator,
-    IResourceAuthorizer authorizer) : IResultService
+    IResourceAuthorizer authorizer,
+    HybridCache cache,
+    CacheMetrics metrics,
+    IOptions<CacheSettings> cacheSettings) : IResultService
 {
+    /// <summary>
+    /// Both expirations are always set. An entry with no expiry survives any failure of the
+    /// invalidation path indefinitely, which turns one missed eviction into permanent
+    /// corruption of the standings.
+    /// </summary>
+    private readonly HybridCacheEntryOptions _entryOptions = new()
+    {
+        Expiration = TimeSpan.FromSeconds(cacheSettings.Value.LeaderboardSeconds),
+        LocalCacheExpiration = TimeSpan.FromSeconds(cacheSettings.Value.LeaderboardLocalSeconds),
+    };
+
     private static readonly Expression<Func<Result, ResultResponse>> ToResponse =
         r => new ResultResponse(
             r.Id,
@@ -137,7 +155,7 @@ public class ResultService(
         db.Results.Add(result);
         await db.SaveChangesAsync(ct);
 
-        // Phase 4 seam: evict the cached leaderboard for raceEvent.SeriesId here.
+        await InvalidateSeriesAsync(raceEvent.SeriesId, ct);
 
         return await GetByIdAsync(result.Id, ct)
             ?? throw new InvalidOperationException("Result vanished immediately after insert.");
@@ -171,7 +189,7 @@ public class ResultService(
 
         await db.SaveChangesAsync(ct);
 
-        // Phase 4 seam: evict the cached leaderboard for result.RaceEvent.SeriesId here.
+        await InvalidateSeriesAsync(result.RaceEvent.SeriesId, ct);
 
         return await GetByIdAsync(id, ct)
             ?? throw new InvalidOperationException("Result vanished immediately after update.");
@@ -179,24 +197,67 @@ public class ResultService(
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
     {
-        var result = await db.Results.FirstOrDefaultAsync(r => r.Id == id, ct)
+        // RaceEvent is included because the series id is needed to evict after the row is gone.
+        var result = await db.Results
+            .Include(r => r.RaceEvent)
+            .FirstOrDefaultAsync(r => r.Id == id, ct)
             ?? throw new NotFoundException("Result", id);
 
         await authorizer.EnsureAsync(result, ResourceOperations.Delete);
 
+        var seriesId = result.RaceEvent.SeriesId;
+
         db.Results.Remove(result);
         await db.SaveChangesAsync(ct);
+
+        await InvalidateSeriesAsync(seriesId, ct);
     }
+
+    /// <summary>
+    /// Drops every cached entry derived from this series. Called after the write commits,
+    /// never before — evicting first leaves a window where a concurrent read repopulates
+    /// the cache from the pre-commit state.
+    /// </summary>
+    private ValueTask InvalidateSeriesAsync(Guid seriesId, CancellationToken ct) =>
+        cache.RemoveByTagAsync(CacheKeys.SeriesTag(seriesId), ct);
 
     public async Task<IReadOnlyList<LeaderboardEntryResponse>> GetLeaderboardAsync(
         Guid seriesId,
         CancellationToken ct)
     {
-        if (!await db.Series.AnyAsync(s => s.Id == seriesId, ct))
-        {
-            throw new NotFoundException("Series", seriesId);
-        }
+        // The season is needed for the cache key, so fetch it instead of a bare existence
+        // check — same round trip, and it doubles as the 404 guard.
+        var season = await db.Series
+            .Where(s => s.Id == seriesId)
+            .Select(s => (int?)s.Season)
+            .FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException("Series", seriesId);
 
+        var startedAt = Stopwatch.GetTimestamp();
+        var wasMiss = false;
+
+        var entries = await cache.GetOrCreateAsync(
+            CacheKeys.Leaderboard(seriesId, season),
+            async token =>
+            {
+                // Only reached when nothing is cached. HybridCache collapses concurrent
+                // misses onto this one call, so a cold key cannot stampede the database.
+                wasMiss = true;
+                return await ComputeLeaderboardAsync(seriesId, token);
+            },
+            _entryOptions,
+            [CacheKeys.SeriesTag(seriesId)],
+            ct);
+
+        metrics.RecordLeaderboard(wasMiss, Stopwatch.GetElapsedTime(startedAt));
+
+        return entries;
+    }
+
+    private async Task<LeaderboardEntryResponse[]> ComputeLeaderboardAsync(
+        Guid seriesId,
+        CancellationToken ct)
+    {
         // Aggregation runs entirely in SQL; only one row per driver comes back.
         var standings = await db.Results
             .AsNoTracking()
@@ -228,7 +289,7 @@ public class ResultService(
                 x.Wins,
                 x.Podiums,
                 x.FastestLaps))
-            .ToList();
+            .ToArray();
     }
 
     private async Task<PointsScheme> LoadSchemeForEvent(Guid seriesId, CancellationToken ct)

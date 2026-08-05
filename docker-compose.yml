@@ -17,7 +17,6 @@ services:
       timeout: 5s
       retries: 10
 
-  # Not consumed yet — the caching layer lands in phase 4.
   cache:
     image: redis:7.4-alpine
     command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
@@ -45,6 +44,8 @@ services:
       # Double underscore is the .NET config-provider separator for nested keys.
       ConnectionStrings__Default: >-
         Host=db;Port=5432;Database=${POSTGRES_DB:-trackboard};Username=${POSTGRES_USER:-trackboard};Password=${POSTGRES_PASSWORD:-trackboard}
+      # Omitting this is supported: the cache falls back to in-process only.
+      ConnectionStrings__Redis: cache:6379
       # No default: the app refuses to start without a 256-bit key, which is the
       # intended behaviour rather than silently falling back to a known value.
       Jwt__Secret: ${JWT_SECRET:?set JWT_SECRET in .env - generate with: openssl rand -base64 48}

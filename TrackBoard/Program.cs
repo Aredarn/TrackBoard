@@ -5,14 +5,18 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Hybrid;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using TrackBoard.Auth;
+using TrackBoard.Caching;
 using TrackBoard.Common;
 using TrackBoard.Data;
 using TrackBoard.Data.Interceptors;
@@ -59,6 +63,42 @@ builder.Services.AddDbContext<TrackBoardDbContext>((sp, options) =>
         options.EnableDetailedErrors();
     }
 });
+
+// ── Caching ──────────────────────────────────────────────────────────────────
+builder.Services
+    .AddOptions<CacheSettings>()
+    .Bind(builder.Configuration.GetSection(CacheSettings.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services.AddSingleton<CacheMetrics>();
+
+var redisConnection = builder.Configuration.GetConnectionString("Redis");
+
+if (!string.IsNullOrWhiteSpace(redisConnection))
+{
+    // Registering an IDistributedCache is all it takes: HybridCache picks it up as its
+    // L2 automatically. Without it the cache is L1-only, which is a fine local default
+    // but means instances in a deployed environment would not share entries.
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = redisConnection;
+        options.InstanceName = "trackboard:";
+    });
+}
+
+builder.Services.AddHybridCache(options =>
+{
+    // Per-entry options override these; they exist so a call site that forgets to pass
+    // any cannot end up caching forever.
+    options.DefaultEntryOptions = new HybridCacheEntryOptions
+    {
+        Expiration = TimeSpan.FromMinutes(5),
+        LocalCacheExpiration = TimeSpan.FromSeconds(30),
+    };
+});
+
+builder.Services.AddHostedService<CacheWarmupService>();
 
 // ── Authentication ───────────────────────────────────────────────────────────
 builder.Services
@@ -193,7 +233,12 @@ builder.Services
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
-builder.Services.AddHealthChecks();
+builder.Services
+    .AddHealthChecks()
+    // Tagged "ready" so liveness stays dependency-free: a database blip should not make
+    // the orchestrator kill an otherwise healthy process, only stop routing to it.
+    .AddDbContextCheck<TrackBoardDbContext>("database", tags: ["ready"])
+    .AddCheck<CacheHealthCheck>("cache", tags: ["ready"]);
 builder.Services.AddOpenApi(options =>
     options.AddDocumentTransformer<OpenApiSecuritySchemeTransformer>());
 
@@ -221,7 +266,47 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHealthChecks("/health").AllowAnonymous();
+
+// Liveness: is the process up. No dependencies, no detail.
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = _ => false,
+}).AllowAnonymous();
+
+// Readiness: can it actually serve. Probes must reach this without a token, so the
+// response body stays a bare status outside Development — the names and failure reasons
+// of internal dependencies are not something to hand to an anonymous caller.
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = app.Environment.IsDevelopment()
+        ? WriteDetailedHealthResponse
+        : WriteMinimalHealthResponse,
+}).AllowAnonymous();
+
+static Task WriteMinimalHealthResponse(HttpContext context, HealthReport report)
+{
+    context.Response.ContentType = "text/plain";
+    return context.Response.WriteAsync(report.Status.ToString());
+}
+
+static Task WriteDetailedHealthResponse(HttpContext context, HealthReport report)
+{
+    context.Response.ContentType = "application/json";
+
+    return context.Response.WriteAsJsonAsync(new
+    {
+        status = report.Status.ToString(),
+        totalDurationMs = report.TotalDuration.TotalMilliseconds,
+        checks = report.Entries.Select(e => new
+        {
+            name = e.Key,
+            status = e.Value.Status.ToString(),
+            durationMs = e.Value.Duration.TotalMilliseconds,
+            description = e.Value.Description,
+        }),
+    });
+}
 
 app.Run();
 

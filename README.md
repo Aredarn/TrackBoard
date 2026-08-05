@@ -7,8 +7,8 @@ configurable scoring scheme.
 Built with .NET 10 / ASP.NET Core, EF Core 10, and PostgreSQL. See [ROADMAP.md](ROADMAP.md)
 for the phased plan and what is still outstanding.
 
-> **Status:** phases 1–3 are implemented — core API, JWT authentication, and authorisation.
-> Caching, tests, and CI (phases 4–6) are not built yet.
+> **Status:** phases 1–4 are implemented — core API, JWT authentication, authorisation, and
+> leaderboard caching. Tests and CI (phases 5–6) are not built yet.
 
 ## Getting started
 
@@ -43,14 +43,19 @@ dotnet ef database update --project TrackBoard
 dotnet run --project TrackBoard
 ```
 
-The API documentation UI is at `/scalar/v1` in Development, the OpenAPI document at
-`/openapi/v1.json`, and an anonymous liveness probe at `/health`.
+The API documentation UI is at `/scalar/v1` in Development and the OpenAPI document at
+`/openapi/v1.json`.
+
+`/health` is a liveness probe with no dependencies. `/health/ready` reports whether the
+database and cache are actually reachable, with per-check detail in Development only.
 
 ### Configuration
 
 | Key | Source |
 |---|---|
 | `ConnectionStrings:Default` | user-secrets locally; `ConnectionStrings__Default` environment variable when deployed |
+| `ConnectionStrings:Redis` | optional. Present → Redis is the shared cache layer; absent → in-process only |
+| `Cache:*` | TTLs and warm-up behaviour, in `appsettings.json` |
 | `Jwt:Secret` | user-secrets locally; `Jwt__Secret` environment variable when deployed. Minimum 256 bits |
 | `Jwt:Issuer`, `Jwt:Audience`, token lifetimes | `appsettings.json` — not secret |
 | `Cors:AllowedOrigins` | array of permitted origins. Empty means no cross-origin access is granted |
@@ -90,6 +95,20 @@ RFC 7807 `ProblemDetails`. Enums are serialised as strings.
 
 Result points are always derived server-side from the series' points scheme and are ignored
 if a client supplies them. A DNF scores zero, bonuses included.
+
+## Caching
+
+Leaderboards are cached with `HybridCache` — in-process L1, plus Redis as a shared L2 when
+`ConnectionStrings:Redis` is set. Entries live 300 seconds shared / 30 seconds local and are
+tagged per series, so any write that can move the standings evicts them immediately: result
+submit, update, delete, and race-event update or delete. Nothing is cached without an expiry.
+
+The current and previous season are warmed at startup by a background service, so the first
+request after a deploy does not pay for the aggregation. Warm-up never blocks startup.
+
+Cache behaviour is instrumented on the `TrackBoard.Cache` meter — `trackboard.cache.requests`
+and `trackboard.leaderboard.duration`, both tagged `outcome=hit|miss`. Note that nothing
+currently exports these; wiring up OpenTelemetry is still outstanding.
 
 `/api/auth/register`, `/login`, and `/refresh` are rate limited to 5 requests per minute per
 client; everything else to 300.
