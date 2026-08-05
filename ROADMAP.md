@@ -236,34 +236,55 @@ Defects found at the start, and their current state:
 *What separates a demo from a production codebase.*
 
 ### Testing
-- [ ] xUnit unit tests for all service logic, especially points-calculation edge cases
-  (ties, DNF, partial grids, scheme changes mid-season). Mock with NSubstitute.
-  Assert with `Shouldly` or plain xUnit — FluentAssertions v8+ is commercially licensed.
-- [ ] Integration-test the full result-submission flow with `WebApplicationFactory<Program>` +
-  `Testcontainers.PostgreSql`. **[was: `@SpringBootTest` + Testcontainers]**
-  ⚠️ Gotcha: `Program.cs` uses top-level statements, so add `public partial class Program { }`
-  at the bottom of it or `WebApplicationFactory<Program>` won't compile.
-- [ ] 🔒 Security tests: 401 on missing token, 403 on wrong owner, 200 on valid.
-- [ ] 🔒 JWT tests: expired token, tampered signature, missing `Bearer` prefix, wrong audience.
-- [ ] 70%+ coverage on services and controllers via
-  `dotnet test --collect:"XPlat Code Coverage"` (coverlet) + ReportGenerator.
+- [x] 16 xUnit tests over `PointsCalculator` covering DNF (bonuses forfeited, and a retirement
+  that kept a stale position), partial grids, empty schemes, both bonuses, and mid-season
+  scheme changes. Shouldly for assertions — FluentAssertions v8+ is commercially licensed.
+  NSubstitute is referenced but unused so far: the calculator is pure, and the endpoint tests
+  deliberately exercise real services rather than mocks.
+- [x] `TrackBoardApiFactory` boots the whole app via `WebApplicationFactory<Program>`; 13
+  tests drive the full submission flow from reference data through points to the leaderboard,
+  including cache invalidation on write and on race-event deletion.
+  ⚠️ **Deviation:** SQLite, not `Testcontainers.PostgreSql` — Docker is unavailable here.
+  PostgreSQL-specific translation is therefore **untested**; everything above the provider
+  is covered. Swapping providers is one method (`TrackBoardApiFactory.UseTestDatabase`).
+  The `public partial class Program` gotcha was already handled back in phase 2.
+- [x] 🔒 9 authorisation tests: 401 anonymous, 403 for a valid token with the wrong role,
+  403 across all three verbs on another driver's vehicle, list scoping, admin override, and
+  that a forged `ownerId` in the body cannot reassign ownership.
+- [x] 🔒 11 JWT tests: tampered signature, payload edited after signing, `alg=none`, wrong
+  key, wrong issuer, wrong audience, expired, expired-by-one-second (guards `ClockSkew`),
+  missing `Bearer` prefix, no header.
+- [x] **76.7% line coverage** (48.8% branch) — above the 70% target, enforced in CI.
+  Migrations and generated code are excluded via [coverlet.runsettings](coverlet.runsettings);
+  counting them measured how many migrations exist, not how well the code is tested.
 
 ### Code quality
-- [ ] `.editorconfig` + `dotnet format --verify-no-changes` enforced in CI.
+- [x] [.editorconfig](.editorconfig) with `dotnet format --verify-no-changes` gating CI.
   **[was: Checkstyle / Spotless]**
-- [ ] Enable `<EnableNETAnalyzers>`, `<AnalysisMode>All</AnalysisMode>`,
-  `<TreatWarningsAsErrors>` in the csproj; add SonarCloud (free for public repos).
-  **[was: SpotBugs / SonarQube]**
-- [ ] Thin controllers — parsing and delegation only, no business logic. Fix `VehicleController`
-  as the reference example.
-- [ ] No `#pragma warning disable` without a justification comment. **[was: `@SuppressWarnings`]**
+- [x] [Directory.Build.props](Directory.Build.props) applies `EnableNETAnalyzers` and
+  `TreatWarningsAsErrors` to every project. ⚠️ `AnalysisMode` is **Recommended**, not `All`:
+  `All` produced 30 build errors, mostly `CA1848` on logging. The logging findings were fixed
+  properly with `[LoggerMessage]` source generation rather than suppressed; migrations are
+  excluded from analysis because they are generated. SonarCloud not added — it needs a repo
+  to be public first. **[was: SpotBugs / SonarQube]**
+- [x] Controllers parse and delegate only. The stub `VehicleController` was replaced in
+  phase 2 by `VehiclesController` with `[ApiController]` and `ControllerBase`.
+- [x] No `#pragma warning disable` anywhere in the codebase. Analyzer severities are tuned in
+  `.editorconfig` with a written reason instead. **[was: `@SuppressWarnings`]**
 
 ### CI/CD
-- [ ] GitHub Actions: `actions/setup-dotnet` → `dotnet restore/build/test` on every push and PR.
-- [ ] Fail the build on test failure or coverage below threshold (coverlet `/p:Threshold=70`).
-- [ ] 🔒 Dependabot for NuGet (`.github/dependabot.yml`).
-- [ ] 🔒 `dotnet list package --vulnerable --include-transitive` as a CI gate. NuGetAudit is on by
-  default in .NET 8+ — promote its warnings to errors. **[was: OWASP dependency-check]**
+- [x] [.github/workflows/ci.yml](.github/workflows/ci.yml) — format check, Release build, then
+  tests with coverage on every push and PR. ⚠️ Never executed on GitHub; the coverage-gate
+  shell was verified locally against a real report and against a synthetic failing value.
+- [x] Test failures fail the job, and a coverage gate fails it below 70%.
+- [x] 🔒 [.github/dependabot.yml](.github/dependabot.yml) for NuGet, GitHub Actions and Docker.
+  Microsoft/EF packages are grouped: they are version-locked, so one-at-a-time PRs produce
+  builds that cannot restore.
+- [x] 🔒 `NuGetAudit` at `low` severity with `TreatWarningsAsErrors` fails the build on any
+  vulnerable package, transitive included, and the security workflow runs
+  `dotnet list package --vulnerable` separately. This caught two real advisories:
+  `Microsoft.OpenApi` 2.0.0 (phase 2) and `SQLitePCLRaw` 2.1.11 (this phase), both pinned
+  to fixed versions. **[was: OWASP dependency-check]**
 
 ---
 
@@ -318,9 +339,11 @@ Everything else follows the phases as written.
 | 2 · Core API | 14 | 14 | 0 | 1 | 1 |
 | 3 · Security | 18 | 16 | 8 | 0 | 0 |
 | 4 · Performance | 12 | 8 | 0 | 1 | 0 |
-| 5 · Quality | 13 | 0 | 0 | 4 | 0 |
+| 5 · Quality | 13 | 13 | 0 | 4 | 0 |
 | 6 · Open source | 13 | 0 | 0 | 0 | 0 |
-| **Total** | **82** | **46** | **8** | **9** | **1** |
+| **Total** | **82** | **59** | **8** | **9** | **1** |
+
+**65 tests, all passing. Build is clean with warnings-as-errors. 76.7% line coverage.**
 
 All 8 critical tasks are implemented and were exercised against a running server.
 

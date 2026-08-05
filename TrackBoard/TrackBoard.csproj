@@ -1,11 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <!-- Framework, nullability, analyzers and NuGet auditing come from Directory.Build.props. -->
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <!-- Fail the build on a package with a known CVE (roadmap phase 5). -->
-    <NuGetAuditMode>all</NuGetAuditMode>
     <UserSecretsId>9e932705-3362-4df8-a7e8-4cbec138cbb0</UserSecretsId>
   </PropertyGroup>
 

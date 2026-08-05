@@ -13,7 +13,7 @@ namespace TrackBoard.Common;
 /// returns a fixed string, so an unexpected failure can never leak a stack trace, a SQL
 /// fragment, or a connection string to the caller — the detail goes to the log instead.
 /// </remarks>
-public sealed class GlobalExceptionHandler(
+public sealed partial class GlobalExceptionHandler(
     IProblemDetailsService problemDetailsService,
     ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
 {
@@ -60,16 +60,12 @@ public sealed class GlobalExceptionHandler(
 
         if (status >= StatusCodes.Status500InternalServerError)
         {
-            logger.LogError(
-                exception,
-                "Unhandled exception on {Method} {Path}",
-                httpContext.Request.Method,
-                httpContext.Request.Path);
+            LogUnhandled(logger, httpContext.Request.Method, httpContext.Request.Path, exception);
         }
         else
         {
-            logger.LogInformation(
-                "Request failed with {Status} on {Method} {Path}: {Reason}",
+            LogHandled(
+                logger,
                 status,
                 httpContext.Request.Method,
                 httpContext.Request.Path,
@@ -91,4 +87,23 @@ public sealed class GlobalExceptionHandler(
             },
         });
     }
+
+    // Path is taken as PathString rather than string: passing it as a string invokes an
+    // implicit conversion at the call site, which allocates even when the level is disabled.
+    [LoggerMessage(Level = LogLevel.Error, Message = "Unhandled exception on {Method} {Path}")]
+    private static partial void LogUnhandled(
+        ILogger logger,
+        string method,
+        PathString path,
+        Exception exception);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Request failed with {Status} on {Method} {Path}: {Reason}")]
+    private static partial void LogHandled(
+        ILogger logger,
+        int status,
+        string method,
+        PathString path,
+        string reason);
 }

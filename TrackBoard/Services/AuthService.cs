@@ -19,7 +19,7 @@ public interface IAuthService
     Task LogoutAsync(Guid userId, RefreshRequest request, CancellationToken ct);
 }
 
-public class AuthService(
+public partial class AuthService(
     TrackBoardDbContext db,
     ITokenService tokens,
     IPasswordHasher<User> passwordHasher,
@@ -104,9 +104,7 @@ public class AuthService(
             // rotation. Treat the whole session family as compromised and cut it off.
             if (stored.RevokedAt is not null)
             {
-                logger.LogWarning(
-                    "Reuse of a revoked refresh token for user {UserId}; revoking all sessions.",
-                    stored.UserId);
+                LogRefreshTokenReuse(logger, stored.UserId);
 
                 await RevokeAllForUserAsync(stored.UserId, now, ct);
             }
@@ -176,4 +174,9 @@ public class AuthService(
     }
 
     private static string Normalise(string email) => email.Trim().ToLowerInvariant();
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Reuse of a revoked refresh token for user {UserId}; revoking all sessions.")]
+    private static partial void LogRefreshTokenReuse(ILogger logger, Guid userId);
 }

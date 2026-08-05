@@ -1,0 +1,36 @@
+version: 2
+
+updates:
+  - package-ecosystem: nuget
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: ["dependencies"]
+    groups:
+      # The Microsoft.* and EF Core packages are version-locked to each other; updating
+      # them one PR at a time produces builds that cannot restore.
+      microsoft:
+        patterns:
+          - "Microsoft.*"
+          - "System.*"
+          - "Npgsql*"
+      test-dependencies:
+        patterns:
+          - "xunit*"
+          - "NSubstitute*"
+          - "Shouldly*"
+          - "coverlet*"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "ci"]
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "docker"]

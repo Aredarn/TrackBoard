@@ -1,0 +1,77 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml,csproj,props,targets,runsettings}]
+indent_size = 2
+
+[*.md]
+# Two trailing spaces are a hard line break in Markdown.
+trim_trailing_whitespace = false
+
+[*.cs]
+max_line_length = 100
+
+# ── Usings ───────────────────────────────────────────────────────────────────
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+csharp_using_directive_placement = outside_namespace:warning
+
+# ── Modern C# the codebase already uses ──────────────────────────────────────
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+csharp_style_expression_bodied_properties = true:suggestion
+csharp_style_prefer_primary_constructors = true:suggestion
+csharp_prefer_braces = true:warning
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_prefer_pattern_matching = true:suggestion
+csharp_style_prefer_not_pattern = true:suggestion
+csharp_style_prefer_switch_expression = true:suggestion
+csharp_style_implicit_object_creation_when_type_is_apparent = true:suggestion
+csharp_style_prefer_collection_expression = true:suggestion
+dotnet_style_prefer_conditional_expression_over_assignment = true:suggestion
+dotnet_style_readonly_field = true:warning
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
+
+# ── Naming ───────────────────────────────────────────────────────────────────
+# There is deliberately no `_`-prefix rule for private fields. This codebase uses primary
+# constructors throughout, and the analyzer sees their parameters as private fields — so the
+# rule fires on `db`, `cache`, `logger` and friends, which are parameters and must not be
+# renamed. Hand-written private fields still use the `_` prefix by convention; it simply
+# cannot be machine-enforced without flagging every primary constructor in the repo.
+
+dotnet_naming_rule.constants_pascal_case.severity = warning
+dotnet_naming_rule.constants_pascal_case.symbols = constants
+dotnet_naming_rule.constants_pascal_case.style = pascal_case
+
+dotnet_naming_symbols.constants.applicable_kinds = field
+dotnet_naming_symbols.constants.required_modifiers = const
+
+dotnet_naming_style.pascal_case.capitalization = pascal_case
+
+# ── Analyzer severities ──────────────────────────────────────────────────────
+# Test method names read as sentences with underscores; that is intentional.
+dotnet_diagnostic.CA1707.severity = none
+
+# xUnit runs everything through the async machinery; ConfigureAwait adds noise here.
+dotnet_diagnostic.CA2007.severity = none
+
+[TrackBoard.Tests/**.cs]
+# Assertion-heavy test bodies legitimately instantiate throwaway objects.
+dotnet_diagnostic.CA1861.severity = none
+
+# High-performance logging patterns are noise in tests.
+dotnet_diagnostic.CA1848.severity = none
+
+[**/Data/Migrations/*.cs]
+# Written by `dotnet ef`, not by hand. Linting generated files produces findings nobody
+# can act on without editing a file that will be regenerated.
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none
+dotnet_diagnostic.CA1861.severity = none

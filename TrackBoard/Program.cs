@@ -143,8 +143,20 @@ builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 
 // ── Rate limiting ────────────────────────────────────────────────────────────
+builder.Services
+    .AddOptions<RateLimitSettings>()
+    .Bind(builder.Configuration.GetSection(RateLimitSettings.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 builder.Services.AddRateLimiter(options =>
 {
+    // Resolved per request rather than read here. Reading configuration during service
+    // registration captures whatever is bound at that moment, which silently misses any
+    // source layered on afterwards — exactly how a test host supplies its overrides.
+    static RateLimitSettings Limits(HttpContext context) =>
+        context.RequestServices.GetRequiredService<IOptions<RateLimitSettings>>().Value;
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
     // An empty 429 tells a well-behaved client nothing about when to retry.
@@ -168,25 +180,33 @@ builder.Services.AddRateLimiter(options =>
 
     // Credential endpoints get a tight per-IP budget to blunt brute-force attempts.
     options.AddPolicy(RateLimitPolicies.Authentication, context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: ClientKey(context),
+    {
+        var limits = Limits(context);
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: $"auth:{ClientKey(context)}",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 5,
-                Window = TimeSpan.FromMinutes(1),
+                PermitLimit = limits.AuthPermitLimit,
+                Window = TimeSpan.FromSeconds(limits.AuthWindowSeconds),
                 QueueLimit = 0,
-            }));
+            });
+    });
 
     // Everything else gets a looser ceiling, keyed by user once authenticated.
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: ClientKey(context),
+    {
+        var limits = Limits(context);
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: $"global:{ClientKey(context)}",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 300,
-                Window = TimeSpan.FromMinutes(1),
+                PermitLimit = limits.GlobalPermitLimit,
+                Window = TimeSpan.FromSeconds(limits.GlobalWindowSeconds),
                 QueueLimit = 0,
-            }));
+            });
+    });
 
     static string ClientKey(HttpContext context) =>
         context.User.Identity?.IsAuthenticated == true

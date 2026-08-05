@@ -15,7 +15,7 @@ namespace TrackBoard.Caching;
 /// become healthy and start serving even if the database or Redis is briefly unavailable.
 /// A warm-up failure is logged and dropped — it is an optimisation, never a startup gate.
 /// </remarks>
-public sealed class CacheWarmupService(
+public sealed partial class CacheWarmupService(
     IServiceScopeFactory scopeFactory,
     IOptions<CacheSettings> settings,
     ILogger<CacheWarmupService> logger) : BackgroundService
@@ -24,7 +24,7 @@ public sealed class CacheWarmupService(
     {
         if (!settings.Value.WarmupEnabled)
         {
-            logger.LogInformation("Leaderboard cache warm-up is disabled.");
+            LogDisabled(logger);
             return;
         }
 
@@ -38,9 +38,23 @@ public sealed class CacheWarmupService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Leaderboard cache warm-up failed; serving cold instead.");
+            LogFailed(logger, ex);
         }
     }
+
+    // Source-generated logging: the message templates are compiled once rather than parsed
+    // on every call, and arguments are not boxed when the level is disabled.
+    [LoggerMessage(Level = LogLevel.Information, Message = "Leaderboard cache warm-up is disabled.")]
+    private static partial void LogDisabled(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Leaderboard cache warm-up failed; serving cold instead.")]
+    private static partial void LogFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "No series exist yet; nothing to warm.")]
+    private static partial void LogNothingToWarm(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Warmed {Count} leaderboard(s) for seasons {From}-{To}.")]
+    private static partial void LogWarmed(ILogger logger, int count, int from, int to);
 
     private async Task WarmAsync(CancellationToken ct)
     {
@@ -57,7 +71,7 @@ public sealed class CacheWarmupService(
 
         if (latestSeason is null)
         {
-            logger.LogInformation("No series exist yet; nothing to warm.");
+            LogNothingToWarm(logger);
             return;
         }
 
@@ -76,10 +90,6 @@ public sealed class CacheWarmupService(
             await results.GetLeaderboardAsync(seriesId, ct);
         }
 
-        logger.LogInformation(
-            "Warmed {Count} leaderboard(s) for seasons {From}-{To}.",
-            seriesIds.Count,
-            oldestSeasonToWarm,
-            latestSeason);
+        LogWarmed(logger, seriesIds.Count, oldestSeasonToWarm, latestSeason.Value);
     }
 }

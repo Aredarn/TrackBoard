@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  # Coverage floor. Raise it as the suite grows; never lower it to make a build pass.
+  MINIMUM_LINE_COVERAGE: 70
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      # Formatting is checked before the build so a style-only failure is reported as
+      # such rather than being buried under compiler output.
+      - name: Verify formatting
+        run: dotnet format --verify-no-changes --no-restore
+
+      # Directory.Build.props sets TreatWarningsAsErrors, so any analyzer finding fails here.
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test with coverage
+        run: >-
+          dotnet test --no-build --configuration Release
+          --collect:"XPlat Code Coverage"
+          --settings coverlet.runsettings
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory ./TestResults
+
+      - name: Check coverage threshold
+        run: |
+          report=$(find ./TestResults -name 'coverage.cobertura.xml' | head -n 1)
+
+          if [ -z "$report" ]; then
+            echo "::error::No coverage report was produced"
+            exit 1
+          fi
+
+          rate=$(grep -o 'line-rate="[0-9.]*"' "$report" | head -n 1 | grep -o '[0-9.]*')
+          percent=$(awk -v r="$rate" 'BEGIN { printf "%.1f", r * 100 }')
+
+          echo "Line coverage: ${percent}% (minimum ${MINIMUM_LINE_COVERAGE}%)"
+          echo "### Line coverage: ${percent}%" >> "$GITHUB_STEP_SUMMARY"
+
+          below=$(awk -v p="$percent" -v m="$MINIMUM_LINE_COVERAGE" 'BEGIN { print (p < m) ? 1 : 0 }')
+
+          if [ "$below" -eq 1 ]; then
+            echo "::error::Line coverage ${percent}% is below the ${MINIMUM_LINE_COVERAGE}% minimum"
+            exit 1
+          fi
+
+      - name: Upload test results
+        # Results are most useful precisely when the run failed.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ./TestResults
+          retention-days: 7

@@ -7,8 +7,8 @@ configurable scoring scheme.
 Built with .NET 10 / ASP.NET Core, EF Core 10, and PostgreSQL. See [ROADMAP.md](ROADMAP.md)
 for the phased plan and what is still outstanding.
 
-> **Status:** phases 1–4 are implemented — core API, JWT authentication, authorisation, and
-> leaderboard caching. Tests and CI (phases 5–6) are not built yet.
+> **Status:** phases 1–5 are implemented — core API, JWT authentication, authorisation,
+> leaderboard caching, tests and CI. Open-source packaging (phase 6) is not done yet.
 
 ## Getting started
 
@@ -112,6 +112,31 @@ currently exports these; wiring up OpenTelemetry is still outstanding.
 
 `/api/auth/register`, `/login`, and `/refresh` are rate limited to 5 requests per minute per
 client; everything else to 300.
+
+## Tests
+
+```bash
+dotnet test
+```
+
+65 tests: unit tests over the points calculator, and integration tests that boot the whole
+application through `WebApplicationFactory` — authentication, authorisation, JWT rejection,
+the result-submission flow, leaderboard cache invalidation, and rate limiting.
+
+With coverage:
+
+```bash
+dotnet test --collect:"XPlat Code Coverage" --settings coverlet.runsettings
+```
+
+Line coverage is 76.7% and CI fails below 70%. Migrations and generated code are excluded.
+
+Integration tests run against SQLite rather than PostgreSQL, so provider-specific SQL
+translation is not covered — see the note on `TrackBoardApiFactory`.
+
+The build treats warnings as errors and audits packages for known CVEs, so `dotnet build`
+failing on an analyzer finding is expected rather than a misconfiguration. Formatting is
+enforced with `dotnet format --verify-no-changes`.
 
 ## Licence
 
