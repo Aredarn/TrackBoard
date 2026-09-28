@@ -66,9 +66,12 @@ list with the same flags** and never re-derives gates for timing.
 This carries a real consequence. **Two laps are only comparable if both were timed
 against identical gates.** So:
 
-- **A track's geometry freezes once it has a ranked lap.** A later `PUT` that changes
-  `points` returns `409 TrackGeometryLocked`. Changing the geometry means publishing a new
-  track, while name and country stay editable.
+- **A track's timing geometry freezes once it has a ranked lap:** the points' order,
+  positions and start flag, which is what the start/finish gate is derived from. A later
+  `PUT` that changes any of those returns `409 TrackGeometryLocked`; changing the layout
+  means publishing a new track. Sector flags, sector indexes and altitude stay editable,
+  because the app lets a driver re-slice sectors on any saved track. The cost: sector
+  splits already on the board were timed against the old sector gates.
 - **Gate derivation is part of the contract.** If a future app version changes how gates
   are calculated from points, old and new laps on the same track stop being comparable.
   `appVersion` goes up with every session so this can be detected afterwards.

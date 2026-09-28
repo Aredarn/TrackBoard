@@ -249,8 +249,9 @@ paths:
       operationId: upsertTrack
       description: >-
         Create or replace one of the caller's own tracks. Once any ranked lap exists on the
-        track its `points` are frozen, because changing them would change the timing gates
-        under laps already on the leaderboard.
+        track, its timing geometry is frozen — point order, positions and the start flag —
+        because changing it would move the start/finish gate under laps already on the
+        leaderboard. Sector flags, sector indexes and altitude may still change.
       requestBody:
         required: true
         content:
@@ -272,8 +273,8 @@ paths:
         '403': { $ref: '#/components/responses/NotOwner' }
         '409':
           description: >-
-            `code: TrackGeometryLocked` — points changed on a track that already has ranked
-            laps; publish a new track instead. `code: TrackInUse` — a published track cannot be
+            `code: TrackGeometryLocked` — point order, positions or the start flag changed on
+            a track that already has ranked laps; publish a new track instead. `code: TrackInUse` — a published track cannot be
             made private while other drivers have sessions on it.
           content:
             application/problem+json:
@@ -671,7 +672,7 @@ components:
         rankedLapCount: { type: integer }
         geometryLocked:
           type: boolean
-          description: True once a ranked lap exists; `points` can no longer change.
+          description: True once a ranked lap exists; point order, positions and the start flag can no longer change.
 
     Track:
       allOf:

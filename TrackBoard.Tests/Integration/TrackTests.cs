@@ -220,6 +220,54 @@ public class TrackTests(TrackBoardApiFactory factory) : TrackProTestBase(factory
     }
 
     [Fact]
+    public async Task Re_slicing_sectors_is_allowed_after_laps_rank()
+    {
+        // The app lets a driver re-slice sectors on any saved track. Sector gates do not move
+        // the start/finish line, so they must not trip the geometry lock.
+        var (client, _) = await DriverAsync();
+        var id = Guid.NewGuid();
+        await CreateTrackAsync(client, TrackBody("Sliced", visibility: "Published"), id);
+        await UploadSessionAsync(client, SessionBody(id, [Lap(1, 100_000)]));
+
+        object[] resliced =
+        [
+            new { seq = 0, latitude = HungaroringLat, longitude = HungaroringLon, altitude = 200.0, isStartPoint = true },
+            new { seq = 1, latitude = HungaroringLat + 0.001, longitude = HungaroringLon },
+            new { seq = 2, latitude = HungaroringLat + 0.001, longitude = HungaroringLon + 0.001, isSectorPoint = true, sectorIndex = 0 },
+            new { seq = 3, latitude = HungaroringLat, longitude = HungaroringLon + 0.001, isSectorPoint = true, sectorIndex = 1 },
+        ];
+
+        var (status, track) = await PutAsync<TrackResponse>(
+            client, $"/api/v1/tracks/{id}", TrackBody("Sliced", points: resliced));
+
+        status.ShouldBe(HttpStatusCode.OK);
+        track!.SectorCount.ShouldBe(2);
+        track.Points.Count(p => p.IsSectorPoint).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Moving_the_start_line_is_refused_after_laps_rank()
+    {
+        var (client, _) = await DriverAsync();
+        var id = Guid.NewGuid();
+        await CreateTrackAsync(client, TrackBody("Start", visibility: "Published"), id);
+        await UploadSessionAsync(client, SessionBody(id, [Lap(1, 100_000)]));
+
+        object[] newStart =
+        [
+            new { seq = 0, latitude = HungaroringLat, longitude = HungaroringLon, altitude = 200.0 },
+            new { seq = 1, latitude = HungaroringLat + 0.001, longitude = HungaroringLon, isStartPoint = true, isSectorPoint = true, sectorIndex = 0 },
+            new { seq = 2, latitude = HungaroringLat + 0.001, longitude = HungaroringLon + 0.001 },
+            new { seq = 3, latitude = HungaroringLat, longitude = HungaroringLon + 0.001 },
+        ];
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/v1/tracks/{id}", TrackBody("Start", points: newStart), Json);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
     public async Task Geometry_can_change_while_no_lap_ranks_on_it()
     {
         var (client, _) = await DriverAsync();

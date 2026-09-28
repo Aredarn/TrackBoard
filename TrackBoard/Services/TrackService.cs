@@ -141,15 +141,17 @@ public class TrackService(
                 .OrderBy(p => p.Seq)
                 .ToListAsync(ct);
 
-            var geometryChanged = !SameGeometry(stored, points);
+            var pointsChanged = !SamePoints(stored, points);
 
-            // Laps are only comparable against identical gates, and the gates are derived
-            // from these points. Once a lap is on the leaderboard the points are frozen.
-            if (geometryChanged && await HasRankedLapsAsync(id, ct))
+            // Laps are only comparable against identical start/finish gates, and those are
+            // derived from the points' positions, order and start flag. Once a lap is on the
+            // leaderboard those are frozen. Sector flags and altitude are not: the app lets a
+            // driver re-slice sectors on any saved track, and that must not lock them out.
+            if (!SameTimingGeometry(stored, points) && await HasRankedLapsAsync(id, ct))
             {
                 throw new ConflictException(
-                    "This track already has ranked laps, so its points can no longer change. " +
-                    "Publish the new layout as a new track.",
+                    "This track already has ranked laps, so its shape and start line can no " +
+                    "longer change. Publish the new layout as a new track.",
                     "TrackGeometryLocked");
             }
 
@@ -162,7 +164,7 @@ public class TrackService(
                     "TrackInUse");
             }
 
-            if (geometryChanged)
+            if (pointsChanged)
             {
                 await db.TrackPoints.Where(p => p.TrackId == id).ExecuteDeleteAsync(ct);
                 db.TrackPoints.AddRange(points);
@@ -370,16 +372,24 @@ public class TrackService(
         db.Sessions.AnyAsync(s => s.TrackId == track.Id && s.OwnerId != track.OwnerId, ct);
 
     /// <summary>Exact comparison: the app sends back the same doubles it stored.</summary>
-    private static bool SameGeometry(List<TrackPoint> stored, List<TrackPoint> incoming) =>
+    private static bool SamePoints(List<TrackPoint> stored, List<TrackPoint> incoming) =>
+        SameTimingGeometry(stored, incoming)
+        && stored.Zip(incoming).All(pair =>
+            Nullable.Equals(pair.First.Altitude, pair.Second.Altitude)
+            && pair.First.IsSectorPoint == pair.Second.IsSectorPoint
+            && pair.First.SectorIndex == pair.Second.SectorIndex);
+
+    /// <summary>
+    /// What lap timing depends on: point count, order, position and the start flag. The same
+    /// rule the app uses to recognise a premade track.
+    /// </summary>
+    private static bool SameTimingGeometry(List<TrackPoint> stored, List<TrackPoint> incoming) =>
         stored.Count == incoming.Count
         && stored.Zip(incoming).All(pair =>
             pair.First.Seq == pair.Second.Seq
             && pair.First.Latitude.Equals(pair.Second.Latitude)
             && pair.First.Longitude.Equals(pair.Second.Longitude)
-            && Nullable.Equals(pair.First.Altitude, pair.Second.Altitude)
-            && pair.First.IsStartPoint == pair.Second.IsStartPoint
-            && pair.First.IsSectorPoint == pair.Second.IsSectorPoint
-            && pair.First.SectorIndex == pair.Second.SectorIndex);
+            && pair.First.IsStartPoint == pair.Second.IsStartPoint);
 
     private static double HaversineKm(double lat1, double lon1, double lat2, double lon2)
     {
