@@ -29,7 +29,7 @@ public class JwtOptions
     public int AccessTokenMinutes { get; set; } = 60;
 
     [Range(1, 90)]
-    public int RefreshTokenDays { get; set; } = 14;
+    public int RefreshTokenDays { get; set; } = 90;
 }
 
 /// <summary>
