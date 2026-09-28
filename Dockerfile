@@ -5,6 +5,8 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 WORKDIR /src
 
 # Restore as its own layer so code edits do not invalidate the package cache.
+# Directory.Build.props carries the TargetFramework, so restore needs it too.
+COPY Directory.Build.props ./
 COPY TrackBoard/TrackBoard.csproj TrackBoard/
 RUN dotnet restore TrackBoard/TrackBoard.csproj
 
