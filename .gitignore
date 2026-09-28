@@ -372,3 +372,5 @@ appsettings.*.local.json
 *.db
 *.db-shm
 *.db-wal
+# Personal Claude Code / MCP tooling config
+.mcp.json
