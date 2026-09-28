@@ -17,7 +17,7 @@
     <PackageReference Include="Shouldly" Version="4.3.0" />
     <!-- Direct pin: EF Core's SQLite provider still pulls SQLitePCLRaw 2.1.11, which carries
          a high-severity advisory (GHSA-2m69-gcr7-jv3q). 2.1.12 is the fix. -->
-    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.12" />
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
