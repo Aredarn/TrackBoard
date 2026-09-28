@@ -14,7 +14,7 @@ namespace TrackBoard.Tests.Integration;
 /// </summary>
 public class JwtValidationTests(TrackBoardApiFactory factory) : ApiTestBase(factory)
 {
-    private const string ProtectedEndpoint = "/api/vehicles";
+    private const string ProtectedEndpoint = "/api/v1/vehicles";
 
     [Fact]
     public async Task A_genuine_token_is_accepted()

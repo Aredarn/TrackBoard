@@ -9,7 +9,7 @@ namespace TrackBoard.Controllers;
 
 [ApiController]
 [Authorize]
-[Route("api/points-schemes")]
+[Route("api/v1/points-schemes")]
 [Produces("application/json")]
 public class PointsSchemesController(IPointsSchemeService schemes) : ControllerBase
 {

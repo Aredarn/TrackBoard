@@ -74,17 +74,24 @@ public sealed partial class GlobalExceptionHandler(
 
         httpContext.Response.StatusCode = status;
 
+        var problem = new ProblemDetails
+        {
+            Status = status,
+            Title = title,
+            Detail = detail,
+            Instance = $"{httpContext.Request.Method} {httpContext.Request.Path}",
+        };
+
+        if (exception is ConflictException { Code: { } code })
+        {
+            problem.Extensions["code"] = code;
+        }
+
         return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
         {
             HttpContext = httpContext,
             Exception = exception,
-            ProblemDetails = new ProblemDetails
-            {
-                Status = status,
-                Title = title,
-                Detail = detail,
-                Instance = $"{httpContext.Request.Method} {httpContext.Request.Path}",
-            },
+            ProblemDetails = problem,
         });
     }
 

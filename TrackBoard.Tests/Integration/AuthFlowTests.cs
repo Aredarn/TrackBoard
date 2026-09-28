@@ -15,7 +15,7 @@ public class AuthFlowTests(TrackBoardApiFactory factory) : ApiTestBase(factory)
         var email = UniqueEmail("new");
 
         var response = await client.PostAsJsonAsync(
-            "/api/auth/register",
+            "/api/v1/auth/register",
             new { email, displayName = "New Driver", password = ValidPassword },
             Json);
 
@@ -37,7 +37,7 @@ public class AuthFlowTests(TrackBoardApiFactory factory) : ApiTestBase(factory)
         await RegisterAsync(client, email);
 
         var second = await client.PostAsJsonAsync(
-            "/api/auth/register",
+            "/api/v1/auth/register",
             new { email, displayName = "Impostor", password = ValidPassword },
             Json);
 
@@ -52,7 +52,7 @@ public class AuthFlowTests(TrackBoardApiFactory factory) : ApiTestBase(factory)
         await RegisterAsync(client, email.ToLowerInvariant());
 
         var second = await client.PostAsJsonAsync(
-            "/api/auth/register",
+            "/api/v1/auth/register",
             new { email = email.ToUpperInvariant(), displayName = "Same Person", password = ValidPassword },
             Json);
 
@@ -65,7 +65,7 @@ public class AuthFlowTests(TrackBoardApiFactory factory) : ApiTestBase(factory)
     public async Task A_password_below_the_minimum_length_is_rejected(string password)
     {
         var response = await CreateClient().PostAsJsonAsync(
-            "/api/auth/register",
+            "/api/v1/auth/register",
             new { email = UniqueEmail("weak"), displayName = "Weak", password },
             Json);
 
@@ -76,7 +76,7 @@ public class AuthFlowTests(TrackBoardApiFactory factory) : ApiTestBase(factory)
     public async Task A_malformed_email_is_rejected()
     {
         var response = await CreateClient().PostAsJsonAsync(
-            "/api/auth/register",
+            "/api/v1/auth/register",
             new { email = "not-an-email", displayName = "Nope", password = ValidPassword },
             Json);
 
@@ -91,7 +91,7 @@ public class AuthFlowTests(TrackBoardApiFactory factory) : ApiTestBase(factory)
         await RegisterAsync(client, email);
 
         var response = await client.PostAsJsonAsync(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             new { email, password = ValidPassword },
             Json);
 
@@ -108,12 +108,12 @@ public class AuthFlowTests(TrackBoardApiFactory factory) : ApiTestBase(factory)
         await RegisterAsync(client, email);
 
         var wrongPassword = await client.PostAsJsonAsync(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             new { email, password = "definitely-not-the-password" },
             Json);
 
         var unknownAccount = await client.PostAsJsonAsync(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             new { email = UniqueEmail("ghost"), password = "definitely-not-the-password" },
             Json);
 
@@ -138,7 +138,7 @@ public class AuthFlowTests(TrackBoardApiFactory factory) : ApiTestBase(factory)
         var auth = await RegisterAsync(client, displayName: "Known Driver");
         Authenticate(client, auth.AccessToken);
 
-        var me = await client.GetFromJsonAsync<AuthenticatedUserResponse>("/api/auth/me", Json);
+        var me = await client.GetFromJsonAsync<AuthenticatedUserResponse>("/api/v1/auth/me", Json);
 
         me!.Id.ShouldBe(auth.User.Id);
         me.DisplayName.ShouldBe("Known Driver");
@@ -151,7 +151,7 @@ public class AuthFlowTests(TrackBoardApiFactory factory) : ApiTestBase(factory)
         var auth = await RegisterAsync(client);
 
         var refreshed = await PostAsync<AuthResponse>(
-            client, "/api/auth/refresh", new { refreshToken = auth.RefreshToken });
+            client, "/api/v1/auth/refresh", new { refreshToken = auth.RefreshToken });
 
         refreshed.RefreshToken.ShouldNotBe(auth.RefreshToken);
         refreshed.AccessToken.ShouldNotBeNullOrWhiteSpace();
@@ -164,17 +164,17 @@ public class AuthFlowTests(TrackBoardApiFactory factory) : ApiTestBase(factory)
         var auth = await RegisterAsync(client);
 
         var rotated = await PostAsync<AuthResponse>(
-            client, "/api/auth/refresh", new { refreshToken = auth.RefreshToken });
+            client, "/api/v1/auth/refresh", new { refreshToken = auth.RefreshToken });
 
         // Presenting the superseded token means it was captured; that is treated as theft.
         var replay = await client.PostAsJsonAsync(
-            "/api/auth/refresh", new { refreshToken = auth.RefreshToken }, Json);
+            "/api/v1/auth/refresh", new { refreshToken = auth.RefreshToken }, Json);
 
         replay.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
         // The successor issued moments ago must die with it.
         var successor = await client.PostAsJsonAsync(
-            "/api/auth/refresh", new { refreshToken = rotated.RefreshToken }, Json);
+            "/api/v1/auth/refresh", new { refreshToken = rotated.RefreshToken }, Json);
 
         successor.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -183,7 +183,7 @@ public class AuthFlowTests(TrackBoardApiFactory factory) : ApiTestBase(factory)
     public async Task An_unknown_refresh_token_is_rejected()
     {
         var response = await CreateClient().PostAsJsonAsync(
-            "/api/auth/refresh",
+            "/api/v1/auth/refresh",
             new { refreshToken = Convert.ToBase64String(Guid.NewGuid().ToByteArray()) },
             Json);
 
@@ -198,11 +198,11 @@ public class AuthFlowTests(TrackBoardApiFactory factory) : ApiTestBase(factory)
         Authenticate(client, auth.AccessToken);
 
         var logout = await client.PostAsJsonAsync(
-            "/api/auth/logout", new { refreshToken = auth.RefreshToken }, Json);
+            "/api/v1/auth/logout", new { refreshToken = auth.RefreshToken }, Json);
         logout.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         var afterLogout = await client.PostAsJsonAsync(
-            "/api/auth/refresh", new { refreshToken = auth.RefreshToken }, Json);
+            "/api/v1/auth/refresh", new { refreshToken = auth.RefreshToken }, Json);
 
         afterLogout.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -211,7 +211,7 @@ public class AuthFlowTests(TrackBoardApiFactory factory) : ApiTestBase(factory)
     public async Task Logging_out_requires_authentication()
     {
         var response = await CreateClient().PostAsJsonAsync(
-            "/api/auth/logout", new { refreshToken = "anything" }, Json);
+            "/api/v1/auth/logout", new { refreshToken = "anything" }, Json);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }

@@ -9,7 +9,7 @@ namespace TrackBoard.Controllers;
 
 [ApiController]
 [Authorize]
-[Route("api/results")]
+[Route("api/v1/results")]
 [Produces("application/json")]
 public class ResultsController(IResultService results) : ControllerBase
 {

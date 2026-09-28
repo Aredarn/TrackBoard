@@ -24,6 +24,16 @@ public class TrackBoardDbContext(DbContextOptions<TrackBoardDbContext> options)
 
     public DbSet<Result> Results => Set<Result>();
 
+    public DbSet<Track> Tracks => Set<Track>();
+
+    public DbSet<TrackPoint> TrackPoints => Set<TrackPoint>();
+
+    public DbSet<Session> Sessions => Set<Session>();
+
+    public DbSet<Lap> Laps => Set<Lap>();
+
+    public DbSet<LapSector> LapSectors => Set<LapSector>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

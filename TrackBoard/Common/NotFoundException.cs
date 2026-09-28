@@ -8,7 +8,15 @@ public class NotFoundException(string resource, object key)
 }
 
 /// <summary>Thrown when a request is well-formed but violates a domain rule. Maps to 409.</summary>
-public class ConflictException(string message) : Exception(message);
+/// <param name="message">Human-readable explanation.</param>
+/// <param name="code">
+/// Optional stable identifier, e.g. <c>TrackGeometryLocked</c>, returned as the problem's
+/// <c>code</c> so a client can branch on it without parsing the message.
+/// </param>
+public class ConflictException(string message, string? code = null) : Exception(message)
+{
+    public string? Code { get; } = code;
+}
 
 /// <summary>
 /// Thrown when credentials or a refresh token are missing, wrong, or expired. Maps to 401.

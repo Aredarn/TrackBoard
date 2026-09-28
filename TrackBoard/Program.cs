@@ -14,6 +14,7 @@ using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Net.Http.Headers;
 using Scalar.AspNetCore;
 using TrackBoard.Auth;
 using TrackBoard.Caching;
@@ -134,10 +135,20 @@ builder.Services
         options.MapInboundClaims = false;
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+    options.AddPolicy(AuthorizationPolicies.OptionalAuthentication, policy =>
+        policy.RequireAssertion(context =>
+            // Anonymous is fine, and so is a valid token. What fails is a token that was sent
+            // and did not validate: that caller believes they are signed in, and silently
+            // treating them as anonymous would hide an expired session from the app.
+            context.User.Identity?.IsAuthenticated == true
+            || context.Resource is not HttpContext http
+            || !http.Request.Headers.ContainsKey(HeaderNames.Authorization))));
+
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuthorizationHandler, VehicleOwnerHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, ResultOwnerHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, OwnedResourceHandler>();
 builder.Services.AddScoped<IResourceAuthorizer, ResourceAuthorizer>();
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<ITokenService, TokenService>();
@@ -242,6 +253,9 @@ builder.Services.AddScoped<IPointsSchemeService, PointsSchemeService>();
 builder.Services.AddScoped<ISeriesService, SeriesService>();
 builder.Services.AddScoped<IRaceEventService, RaceEventService>();
 builder.Services.AddScoped<IResultService, ResultService>();
+builder.Services.AddScoped<ITrackLeaderboardService, TrackLeaderboardService>();
+builder.Services.AddScoped<ITrackService, TrackService>();
+builder.Services.AddScoped<ISessionService, SessionService>();
 
 // ── Web ──────────────────────────────────────────────────────────────────────
 builder.Services

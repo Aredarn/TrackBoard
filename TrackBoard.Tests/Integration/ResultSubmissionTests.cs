@@ -22,7 +22,7 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
         var auth = await RegisterAsync(driver, displayName: $"Driver {Guid.NewGuid():N}"[..20]);
         Authenticate(driver, auth.AccessToken);
 
-        var vehicle = await PostAsync<VehicleResponse>(driver, "/api/vehicles", SampleVehicle);
+        var vehicle = await PostAsync<VehicleResponse>(driver, "/api/v1/vehicles", SampleVehicle);
 
         return (driver, auth, seed, vehicle.Id);
     }
@@ -32,7 +32,7 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
     {
         var (driver, auth, seed, vehicleId) = await ArrangeAsync();
 
-        var result = await PostAsync<ResultResponse>(driver, "/api/results", new
+        var result = await PostAsync<ResultResponse>(driver, "/api/v1/results", new
         {
             raceEventId = seed.RaceEventId,
             vehicleId,
@@ -52,7 +52,7 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
     {
         var (driver, _, seed, vehicleId) = await ArrangeAsync();
 
-        var result = await PostAsync<ResultResponse>(driver, "/api/results", new
+        var result = await PostAsync<ResultResponse>(driver, "/api/v1/results", new
         {
             raceEventId = seed.RaceEventId,
             vehicleId,
@@ -68,7 +68,7 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
     {
         var (driver, _, seed, vehicleId) = await ArrangeAsync();
 
-        var result = await PostAsync<ResultResponse>(driver, "/api/results", new
+        var result = await PostAsync<ResultResponse>(driver, "/api/v1/results", new
         {
             raceEventId = seed.RaceEventId,
             vehicleId,
@@ -85,9 +85,9 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
         var (driver, _, seed, vehicleId) = await ArrangeAsync();
         var body = new { raceEventId = seed.RaceEventId, vehicleId, position = 1 };
 
-        await PostAsync<ResultResponse>(driver, "/api/results", body);
+        await PostAsync<ResultResponse>(driver, "/api/v1/results", body);
 
-        var second = await driver.PostAsJsonAsync("/api/results", body, Json);
+        var second = await driver.PostAsJsonAsync("/api/v1/results", body, Json);
 
         second.StatusCode.ShouldBe(HttpStatusCode.Conflict);
     }
@@ -101,7 +101,7 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
         Authenticate(interloper, (await RegisterAsync(interloper)).AccessToken);
 
         var response = await interloper.PostAsJsonAsync(
-            "/api/results",
+            "/api/v1/results",
             new { raceEventId = seed.RaceEventId, vehicleId, position = 1 },
             Json);
 
@@ -114,7 +114,7 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
         var (driver, _, seed, vehicleId) = await ArrangeAsync();
 
         var response = await driver.PostAsJsonAsync(
-            "/api/results",
+            "/api/v1/results",
             new { raceEventId = seed.RaceEventId, vehicleId, didNotFinish = false },
             Json);
 
@@ -126,7 +126,7 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
     {
         var (driver, _, seed, vehicleId) = await ArrangeAsync();
 
-        var result = await PostAsync<ResultResponse>(driver, "/api/results", new
+        var result = await PostAsync<ResultResponse>(driver, "/api/v1/results", new
         {
             raceEventId = seed.RaceEventId,
             vehicleId,
@@ -135,7 +135,7 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
         });
 
         var updated = await driver.PutAsJsonAsync(
-            $"/api/results/{result.Id}",
+            $"/api/v1/results/{result.Id}",
             new { didNotFinish = true, setFastestLap = true },
             Json);
 
@@ -152,14 +152,14 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
         var (driver, _, seed, vehicleId) = await ArrangeAsync();
         var result = await PostAsync<ResultResponse>(
             driver,
-            "/api/results",
+            "/api/v1/results",
             new { raceEventId = seed.RaceEventId, vehicleId, position = 1 });
 
         var stranger = CreateClient();
         Authenticate(stranger, (await RegisterAsync(stranger)).AccessToken);
 
         var response = await stranger.PutAsJsonAsync(
-            $"/api/results/{result.Id}",
+            $"/api/v1/results/{result.Id}",
             new { position = 1 },
             Json);
 
@@ -172,7 +172,7 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
         var (driver, _, _, vehicleId) = await ArrangeAsync();
 
         var response = await driver.PostAsJsonAsync(
-            "/api/results",
+            "/api/v1/results",
             new { raceEventId = Guid.NewGuid(), vehicleId, position = 1 },
             Json);
 
@@ -184,7 +184,7 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
     {
         var (driver, auth, seed, vehicleId) = await ArrangeAsync();
 
-        await PostAsync<ResultResponse>(driver, "/api/results", new
+        await PostAsync<ResultResponse>(driver, "/api/v1/results", new
         {
             raceEventId = seed.RaceEventId,
             vehicleId,
@@ -193,7 +193,7 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
         });
 
         var board = await driver.GetFromJsonAsync<List<LeaderboardEntryResponse>>(
-            $"/api/series/{seed.SeriesId}/leaderboard", Json);
+            $"/api/v1/series/{seed.SeriesId}/leaderboard", Json);
 
         var entry = board!.ShouldHaveSingleItem();
         entry.Rank.ShouldBe(1);
@@ -212,7 +212,7 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
         var admin = CreateClient();
         Authenticate(admin, (await RegisterAdminAsync(admin)).AccessToken);
 
-        var round2 = await PostAsync<RaceEventResponse>(admin, "/api/race-events", new
+        var round2 = await PostAsync<RaceEventResponse>(admin, "/api/v1/race-events", new
         {
             name = $"Round 2 {Guid.NewGuid():N}"[..24],
             seriesId = seed.SeriesId,
@@ -222,7 +222,7 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
             status = "Completed",
         });
 
-        await PostAsync<ResultResponse>(driver, "/api/results", new
+        await PostAsync<ResultResponse>(driver, "/api/v1/results", new
         {
             raceEventId = seed.RaceEventId,
             vehicleId,
@@ -231,10 +231,10 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
 
         // Populate the cache, then write again. A stale entry would still read 25.
         var before = await driver.GetFromJsonAsync<List<LeaderboardEntryResponse>>(
-            $"/api/series/{seed.SeriesId}/leaderboard", Json);
+            $"/api/v1/series/{seed.SeriesId}/leaderboard", Json);
         before!.Single().TotalPoints.ShouldBe(25);
 
-        await PostAsync<ResultResponse>(driver, "/api/results", new
+        await PostAsync<ResultResponse>(driver, "/api/v1/results", new
         {
             raceEventId = round2.Id,
             vehicleId,
@@ -242,7 +242,7 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
         });
 
         var after = await driver.GetFromJsonAsync<List<LeaderboardEntryResponse>>(
-            $"/api/series/{seed.SeriesId}/leaderboard", Json);
+            $"/api/v1/series/{seed.SeriesId}/leaderboard", Json);
 
         var standing = after.ShouldNotBeNull().ShouldHaveSingleItem();
         standing.TotalPoints.ShouldBe(43);
@@ -254,7 +254,7 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
     {
         var (driver, _, seed, vehicleId) = await ArrangeAsync();
 
-        await PostAsync<ResultResponse>(driver, "/api/results", new
+        await PostAsync<ResultResponse>(driver, "/api/v1/results", new
         {
             raceEventId = seed.RaceEventId,
             vehicleId,
@@ -262,16 +262,16 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
         });
 
         var populated = await driver.GetFromJsonAsync<List<LeaderboardEntryResponse>>(
-            $"/api/series/{seed.SeriesId}/leaderboard", Json);
+            $"/api/v1/series/{seed.SeriesId}/leaderboard", Json);
         populated!.ShouldNotBeEmpty();
 
         var admin = CreateClient();
         Authenticate(admin, (await RegisterAdminAsync(admin)).AccessToken);
-        (await admin.DeleteAsync($"/api/race-events/{seed.RaceEventId}"))
+        (await admin.DeleteAsync($"/api/v1/race-events/{seed.RaceEventId}"))
             .StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         var after = await driver.GetFromJsonAsync<List<LeaderboardEntryResponse>>(
-            $"/api/series/{seed.SeriesId}/leaderboard", Json);
+            $"/api/v1/series/{seed.SeriesId}/leaderboard", Json);
 
         after.ShouldNotBeNull().ShouldBeEmpty();
     }
@@ -282,7 +282,7 @@ public class ResultSubmissionTests(TrackBoardApiFactory factory) : ApiTestBase(f
         var client = CreateClient();
         Authenticate(client, (await RegisterAsync(client)).AccessToken);
 
-        (await client.GetAsync($"/api/series/{Guid.NewGuid()}/leaderboard"))
+        (await client.GetAsync($"/api/v1/series/{Guid.NewGuid()}/leaderboard"))
             .StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 }

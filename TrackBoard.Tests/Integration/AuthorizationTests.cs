@@ -15,7 +15,7 @@ public class AuthorizationTests(TrackBoardApiFactory factory) : ApiTestBase(fact
     [Fact]
     public async Task An_anonymous_caller_gets_401_not_403()
     {
-        var response = await CreateClient().GetAsync("/api/circuits");
+        var response = await CreateClient().GetAsync("/api/v1/circuits");
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -27,7 +27,7 @@ public class AuthorizationTests(TrackBoardApiFactory factory) : ApiTestBase(fact
         Authenticate(client, (await RegisterAsync(client)).AccessToken);
 
         var response = await client.PostAsJsonAsync(
-            "/api/circuits",
+            "/api/v1/circuits",
             new { name = "Spa", country = "Belgium", lengthMeters = 7004, turns = 19 },
             Json);
 
@@ -42,7 +42,7 @@ public class AuthorizationTests(TrackBoardApiFactory factory) : ApiTestBase(fact
         Authenticate(client, (await RegisterAdminAsync(client)).AccessToken);
 
         var response = await client.PostAsJsonAsync(
-            "/api/circuits",
+            "/api/v1/circuits",
             new
             {
                 name = $"Circuit {Guid.NewGuid():N}",
@@ -61,12 +61,12 @@ public class AuthorizationTests(TrackBoardApiFactory factory) : ApiTestBase(fact
         var client = CreateClient();
         Authenticate(client, (await RegisterAsync(client)).AccessToken);
 
-        var vehicle = await PostAsync<VehicleResponse>(client, "/api/vehicles", SampleVehicle);
+        var vehicle = await PostAsync<VehicleResponse>(client, "/api/v1/vehicles", SampleVehicle);
 
-        (await client.GetAsync($"/api/vehicles/{vehicle.Id}"))
+        (await client.GetAsync($"/api/v1/vehicles/{vehicle.Id}"))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        (await client.PutAsJsonAsync($"/api/vehicles/{vehicle.Id}", SampleVehicle, Json))
+        (await client.PutAsJsonAsync($"/api/v1/vehicles/{vehicle.Id}", SampleVehicle, Json))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
@@ -75,18 +75,18 @@ public class AuthorizationTests(TrackBoardApiFactory factory) : ApiTestBase(fact
     {
         var owner = CreateClient();
         Authenticate(owner, (await RegisterAsync(owner, displayName: "Owner")).AccessToken);
-        var vehicle = await PostAsync<VehicleResponse>(owner, "/api/vehicles", SampleVehicle);
+        var vehicle = await PostAsync<VehicleResponse>(owner, "/api/v1/vehicles", SampleVehicle);
 
         var stranger = CreateClient();
         Authenticate(stranger, (await RegisterAsync(stranger, displayName: "Stranger")).AccessToken);
 
-        (await stranger.GetAsync($"/api/vehicles/{vehicle.Id}"))
+        (await stranger.GetAsync($"/api/v1/vehicles/{vehicle.Id}"))
             .StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
-        (await stranger.PutAsJsonAsync($"/api/vehicles/{vehicle.Id}", SampleVehicle, Json))
+        (await stranger.PutAsJsonAsync($"/api/v1/vehicles/{vehicle.Id}", SampleVehicle, Json))
             .StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
-        (await stranger.DeleteAsync($"/api/vehicles/{vehicle.Id}"))
+        (await stranger.DeleteAsync($"/api/v1/vehicles/{vehicle.Id}"))
             .StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
@@ -95,12 +95,12 @@ public class AuthorizationTests(TrackBoardApiFactory factory) : ApiTestBase(fact
     {
         var owner = CreateClient();
         Authenticate(owner, (await RegisterAsync(owner, displayName: "Owner")).AccessToken);
-        await PostAsync<VehicleResponse>(owner, "/api/vehicles", SampleVehicle);
+        await PostAsync<VehicleResponse>(owner, "/api/v1/vehicles", SampleVehicle);
 
         var stranger = CreateClient();
         Authenticate(stranger, (await RegisterAsync(stranger, displayName: "Stranger")).AccessToken);
 
-        var page = await stranger.GetFromJsonAsync<PagedResult<VehicleResponse>>("/api/vehicles", Json);
+        var page = await stranger.GetFromJsonAsync<PagedResult<VehicleResponse>>("/api/v1/vehicles", Json);
 
         page!.TotalCount.ShouldBe(0);
     }
@@ -110,12 +110,12 @@ public class AuthorizationTests(TrackBoardApiFactory factory) : ApiTestBase(fact
     {
         var owner = CreateClient();
         Authenticate(owner, (await RegisterAsync(owner, displayName: "Owner")).AccessToken);
-        var vehicle = await PostAsync<VehicleResponse>(owner, "/api/vehicles", SampleVehicle);
+        var vehicle = await PostAsync<VehicleResponse>(owner, "/api/v1/vehicles", SampleVehicle);
 
         var admin = CreateClient();
         Authenticate(admin, (await RegisterAdminAsync(admin)).AccessToken);
 
-        (await admin.GetAsync($"/api/vehicles/{vehicle.Id}"))
+        (await admin.GetAsync($"/api/v1/vehicles/{vehicle.Id}"))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
@@ -127,7 +127,7 @@ public class AuthorizationTests(TrackBoardApiFactory factory) : ApiTestBase(fact
         Authenticate(client, auth.AccessToken);
 
         // ownerId is not part of the contract; sending one must not reassign ownership.
-        var vehicle = await PostAsync<VehicleResponse>(client, "/api/vehicles", new
+        var vehicle = await PostAsync<VehicleResponse>(client, "/api/v1/vehicles", new
         {
             ownerId = Guid.NewGuid(),
             manufacturer = "Porsche",
@@ -151,7 +151,7 @@ public class AuthorizationTests(TrackBoardApiFactory factory) : ApiTestBase(fact
         var client = CreateClient();
         Authenticate(client, (await RegisterAsync(client)).AccessToken);
 
-        (await client.GetAsync($"/api/vehicles/{Guid.NewGuid()}"))
+        (await client.GetAsync($"/api/v1/vehicles/{Guid.NewGuid()}"))
             .StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 }

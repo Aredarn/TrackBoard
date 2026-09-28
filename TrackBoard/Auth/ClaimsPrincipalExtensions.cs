@@ -18,6 +18,12 @@ public static class ClaimsPrincipalExtensions
             : throw new InvalidOperationException("Authenticated principal has no usable subject claim.");
     }
 
+    /// <summary>
+    /// The caller's id on endpoints where signing in is optional, or null when anonymous.
+    /// </summary>
+    public static Guid? TryGetUserId(this ClaimsPrincipal principal) =>
+        principal.Identity?.IsAuthenticated == true ? principal.GetUserId() : null;
+
     public static bool IsAdmin(this ClaimsPrincipal principal) =>
         principal.IsInRole(nameof(UserRole.Admin));
 }

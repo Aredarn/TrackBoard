@@ -10,7 +10,7 @@ namespace TrackBoard.Controllers;
 
 [ApiController]
 [Authorize]
-[Route("api/race-events")]
+[Route("api/v1/race-events")]
 [Produces("application/json")]
 public class RaceEventsController(IRaceEventService raceEvents) : ControllerBase
 {

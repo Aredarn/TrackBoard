@@ -40,7 +40,7 @@ public abstract class ApiTestBase : IClassFixture<TrackBoardApiFactory>
         string displayName = "Test Driver")
     {
         var response = await client.PostAsJsonAsync(
-            "/api/auth/register",
+            "/api/v1/auth/register",
             new
             {
                 email = email ?? UniqueEmail("driver"),
@@ -73,7 +73,7 @@ public abstract class ApiTestBase : IClassFixture<TrackBoardApiFactory>
 
         // Re-login so the token carries the new role claim.
         var login = await client.PostAsJsonAsync(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             new { email, password = ValidPassword },
             Json);
 
@@ -96,7 +96,7 @@ public abstract class ApiTestBase : IClassFixture<TrackBoardApiFactory>
     {
         var suffix = Guid.NewGuid().ToString("N")[..8];
 
-        var scheme = await PostAsync<PointsSchemeResponse>(adminClient, "/api/points-schemes", new
+        var scheme = await PostAsync<PointsSchemeResponse>(adminClient, "/api/v1/points-schemes", new
         {
             name = $"Scheme {suffix}",
             fastestLapBonus = 1,
@@ -109,7 +109,7 @@ public abstract class ApiTestBase : IClassFixture<TrackBoardApiFactory>
             },
         });
 
-        var circuit = await PostAsync<CircuitResponse>(adminClient, "/api/circuits", new
+        var circuit = await PostAsync<CircuitResponse>(adminClient, "/api/v1/circuits", new
         {
             name = $"Circuit {suffix}",
             country = "Italy",
@@ -117,14 +117,14 @@ public abstract class ApiTestBase : IClassFixture<TrackBoardApiFactory>
             turns = 11,
         });
 
-        var series = await PostAsync<SeriesResponse>(adminClient, "/api/series", new
+        var series = await PostAsync<SeriesResponse>(adminClient, "/api/v1/series", new
         {
             name = $"Series {suffix}",
             season,
             pointsSchemeId = scheme.Id,
         });
 
-        var raceEvent = await PostAsync<RaceEventResponse>(adminClient, "/api/race-events", new
+        var raceEvent = await PostAsync<RaceEventResponse>(adminClient, "/api/v1/race-events", new
         {
             name = $"Round 1 {suffix}",
             seriesId = series.Id,

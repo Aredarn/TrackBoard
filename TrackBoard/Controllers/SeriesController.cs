@@ -9,7 +9,7 @@ namespace TrackBoard.Controllers;
 
 [ApiController]
 [Authorize]
-[Route("api/series")]
+[Route("api/v1/series")]
 [Produces("application/json")]
 public class SeriesController(ISeriesService series, IResultService results) : ControllerBase
 {

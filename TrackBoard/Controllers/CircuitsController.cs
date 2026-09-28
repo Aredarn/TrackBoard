@@ -9,7 +9,7 @@ namespace TrackBoard.Controllers;
 
 [ApiController]
 [Authorize]
-[Route("api/circuits")]
+[Route("api/v1/circuits")]
 [Produces("application/json")]
 public class CircuitsController(ICircuitService circuits) : ControllerBase
 {

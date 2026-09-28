@@ -26,4 +26,17 @@ public static class CacheKeys
     /// </summary>
     public static string SeriesTag(Guid seriesId) =>
         string.Create(CultureInfo.InvariantCulture, $"series:{seriesId}");
+
+    /// <summary>
+    /// Every driver's best ranked lap on one track. The full list is cached rather than the
+    /// top N, so the caller's own position and a lap's rank come from the same entry.
+    /// </summary>
+    public static string TrackStandings(Guid trackId) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"trackboard:{Version}:standings:track:{trackId}");
+
+    /// <summary>Tag on every entry derived from a track's laps.</summary>
+    public static string TrackTag(Guid trackId) =>
+        string.Create(CultureInfo.InvariantCulture, $"track:{trackId}");
 }

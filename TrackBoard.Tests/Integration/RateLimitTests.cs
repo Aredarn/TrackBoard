@@ -34,7 +34,7 @@ public class RateLimitTests(RateLimitedApiFactory factory) : IClassFixture<RateL
         for (var attempt = 0; attempt < RateLimitedApiFactory.AuthLimit + 2; attempt++)
         {
             var response = await client.PostAsJsonAsync(
-                "/api/auth/login",
+                "/api/v1/auth/login",
                 new { email = "nobody@example.com", password = "wrong-password-attempt" });
 
             statuses.Add(response.StatusCode);
@@ -57,7 +57,7 @@ public class RateLimitTests(RateLimitedApiFactory factory) : IClassFixture<RateL
         for (var attempt = 0; attempt < RateLimitedApiFactory.AuthLimit + 3; attempt++)
         {
             var response = await client.PostAsJsonAsync(
-                "/api/auth/login",
+                "/api/v1/auth/login",
                 new { email = "someone@example.com", password = "wrong-password-attempt" });
 
             if (response.StatusCode == HttpStatusCode.TooManyRequests)

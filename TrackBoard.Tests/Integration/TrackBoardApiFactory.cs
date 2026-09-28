@@ -37,7 +37,12 @@ public class TrackBoardApiFactory : WebApplicationFactory<Program>
     /// A SQLite in-memory database lives only as long as a connection to it is open, so this
     /// one is held for the factory's lifetime and handed to every scope.
     /// </summary>
-    private readonly SqliteConnection _connection = new("DataSource=:memory:");
+    /// <remarks>
+    /// <c>Foreign Keys=True</c> matters: EF only switches SQLite's foreign-key enforcement on
+    /// when it opens the connection itself, and this one arrives already open. Without it,
+    /// cascades, SET NULL and RESTRICT silently do nothing here while PostgreSQL enforces them.
+    /// </remarks>
+    private readonly SqliteConnection _connection = new("DataSource=:memory:;Foreign Keys=True");
 
     /// <summary>Known to the tests so they can forge tokens to be rejected.</summary>
     public const string JwtSecret = "test-only-signing-key-that-is-comfortably-over-256-bits-long";
@@ -121,7 +126,8 @@ public class TrackBoardApiFactory : WebApplicationFactory<Program>
             .UseSqlite(_connection)
             // Kept identical to production so column naming cannot drift between the two.
             .UseSnakeCaseNamingConvention()
-            .AddInterceptors(sp.GetRequiredService<AuditingInterceptor>());
+            .AddInterceptors(sp.GetRequiredService<AuditingInterceptor>())
+            .ReplaceService<IModelCustomizer, SqliteDateTimeOffsetModelCustomizer>();
 
     protected override void Dispose(bool disposing)
     {

@@ -9,7 +9,7 @@ namespace TrackBoard.Controllers;
 
 [ApiController]
 [Authorize]
-[Route("api/vehicles")]
+[Route("api/v1/vehicles")]
 [Produces("application/json")]
 public class VehiclesController(IVehicleService vehicles) : ControllerBase
 {
@@ -48,15 +48,23 @@ public class VehiclesController(IVehicleService vehicles) : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
+    /// <summary>Create or replace under an id the app generated. Safe to retry.</summary>
     [HttpPut("{id:guid}")]
     [ProducesResponseType<VehicleResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<VehicleResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<VehicleResponse>> Update(
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<VehicleResponse>> Upsert(
         Guid id,
         [FromBody] UpdateVehicleRequest request,
         CancellationToken ct)
-        => Ok(await vehicles.UpdateAsync(id, request, ct));
+    {
+        var (vehicle, created) = await vehicles.UpsertAsync(id, User.GetUserId(), request, ct);
+
+        return created
+            ? CreatedAtAction(nameof(GetById), new { id }, vehicle)
+            : Ok(vehicle);
+    }
 
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

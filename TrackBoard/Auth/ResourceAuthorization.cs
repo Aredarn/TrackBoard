@@ -92,3 +92,29 @@ public class ResultOwnerHandler
         return Task.CompletedTask;
     }
 }
+
+/// <summary>
+/// Ownership for everything implementing <see cref="IOwnedResource"/> — tracks and sessions.
+/// The owner may act on it; an admin may act on any.
+/// </summary>
+public class OwnedResourceHandler
+    : AuthorizationHandler<OperationAuthorizationRequirement, IOwnedResource>
+{
+    protected override Task HandleRequirementAsync(
+        AuthorizationHandlerContext context,
+        OperationAuthorizationRequirement requirement,
+        IOwnedResource resource)
+    {
+        if (context.User.Identity?.IsAuthenticated != true)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (context.User.IsAdmin() || resource.OwnerId == context.User.GetUserId())
+        {
+            context.Succeed(requirement);
+        }
+
+        return Task.CompletedTask;
+    }
+}
