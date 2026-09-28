@@ -30,3 +30,10 @@ public class UnauthorizedException(string message) : Exception(message);
 /// Maps to 403 — distinct from 401, which means "we do not know who you are".
 /// </summary>
 public class ForbiddenException(string message) : Exception(message);
+
+/// <summary>
+/// Thrown when an optional dependency the request needs is not configured on this
+/// deployment, e.g. photo storage. Maps to 503 so a client can say "not available here"
+/// rather than "something broke".
+/// </summary>
+public class ServiceUnavailableException(string message) : Exception(message);

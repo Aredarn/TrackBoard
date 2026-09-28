@@ -18,6 +18,7 @@ public class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
         builder.Property(v => v.TireType).IsRequired().HasMaxLength(50);
         builder.Property(v => v.Transmission).IsRequired().HasMaxLength(50);
         builder.Property(v => v.SuspensionType).HasMaxLength(100);
+        builder.Property(v => v.PhotoPath).HasMaxLength(300);
 
         builder
             .HasOne(v => v.Owner)

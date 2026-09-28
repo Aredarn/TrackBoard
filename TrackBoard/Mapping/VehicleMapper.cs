@@ -19,6 +19,7 @@ public static partial class VehicleMapper
     [MapperIgnoreTarget(nameof(Vehicle.Owner))]
     [MapperIgnoreTarget(nameof(Vehicle.OwnerId))]
     [MapperIgnoreTarget(nameof(Vehicle.Results))]
+    [MapperIgnoreTarget(nameof(Vehicle.PhotoPath))]
     public static partial Vehicle ToEntity(CreateVehicleRequest request);
 
     [MapperIgnoreTarget(nameof(Vehicle.Id))]
@@ -27,5 +28,8 @@ public static partial class VehicleMapper
     [MapperIgnoreTarget(nameof(Vehicle.Owner))]
     [MapperIgnoreTarget(nameof(Vehicle.OwnerId))]
     [MapperIgnoreTarget(nameof(Vehicle.Results))]
+    // The sync upsert replaces the vehicle wholesale, and older app builds send no photo.
+    // Mapping it here would let every such upload wipe a photo set from another phone.
+    [MapperIgnoreTarget(nameof(Vehicle.PhotoPath))]
     public static partial void ApplyTo(UpdateVehicleRequest request, Vehicle target);
 }
