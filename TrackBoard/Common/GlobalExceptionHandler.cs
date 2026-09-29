@@ -46,6 +46,11 @@ public sealed partial class GlobalExceptionHandler(
                 "Access denied",
                 forbidden.Message),
 
+            ServiceUnavailableException unavailable => (
+                StatusCodes.Status503ServiceUnavailable,
+                "Not available on this server",
+                unavailable.Message),
+
             // 499 is nginx's "client closed request"; ASP.NET Core has no constant for it.
             OperationCanceledException => (
                 499,
@@ -58,7 +63,9 @@ public sealed partial class GlobalExceptionHandler(
                 "The request could not be completed. Contact support with the trace identifier."),
         };
 
-        if (status >= StatusCodes.Status500InternalServerError)
+        // A 503 here is a known, configured-off feature, not a crash worth a stack trace.
+        if (status >= StatusCodes.Status500InternalServerError
+            && status != StatusCodes.Status503ServiceUnavailable)
         {
             LogUnhandled(logger, httpContext.Request.Method, httpContext.Request.Path, exception);
         }

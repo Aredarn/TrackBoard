@@ -126,6 +126,126 @@ paths:
               schema: { $ref: '#/components/schemas/User' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  # ── Profile ─────────────────────────────────────────────────────────────────────────
+  /me:
+    get:
+      tags: [Profile]
+      operationId: getProfile
+      responses:
+        '200':
+          description: The caller's profile.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [Profile]
+      operationId: updateProfile
+      description: >-
+        Partial update. A field left out keeps its value; an empty string clears bio or
+        country. Renaming refreshes every leaderboard the driver appears on.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfileUpdate' }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    delete:
+      tags: [Profile]
+      operationId: deleteAccount
+      description: >-
+        Permanently deletes the account: sessions, laps, vehicles, private tracks, photos
+        and refresh tokens. A published track other drivers have timed on is kept under an
+        anonymised owner. The email becomes free to register again. Rate limited like login.
+      responses:
+        '204': { description: Deleted. The app should drop its tokens. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /me/stats:
+    get:
+      tags: [Profile]
+      operationId: getProfileStats
+      responses:
+        '200':
+          description: Totals, main vehicle, and a personal best per track with leaderboard position.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileStats' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /me/export:
+    get:
+      tags: [Profile]
+      operationId: exportAccount
+      responses:
+        '200':
+          description: Everything the server holds about the caller. Sent as an attachment.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountExport' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /me/uploads:
+    post:
+      tags: [Profile]
+      operationId: createUpload
+      description: >-
+        Step one of a photo change. Returns a signed single-use URL; PUT the image bytes to
+        it with the same Content-Type, then attach `path` with PUT /me/avatar or
+        PUT /vehicles/{vehicleId}/photo. Answers 503 when the server has no photo storage.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UploadRequest' }
+      responses:
+        '200':
+          description: Upload target.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UploadTarget' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/NotOwner' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/StorageUnavailable' }
+
+  /me/avatar:
+    put:
+      tags: [Profile]
+      operationId: setAvatar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetMedia' }
+      responses:
+        '200':
+          description: Attached; the previous avatar is removed from storage.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: The path was not signed for this profile. }
+    delete:
+      tags: [Profile]
+      operationId: clearAvatar
+      responses:
+        '200':
+          description: Removed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   # ── Vehicles ────────────────────────────────────────────────────────────────────────
   /vehicles:
     get:
@@ -181,6 +301,42 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/ProblemDetails' }
+
+  /vehicles/{vehicleId}/photo:
+    parameters:
+      - $ref: '#/components/parameters/VehicleId'
+    put:
+      tags: [Vehicles]
+      operationId: setVehiclePhoto
+      description: >-
+        Attaches a photo uploaded through POST /me/uploads. The vehicle upsert never
+        touches the photo, so background sync from an older build cannot erase it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetMedia' }
+      responses:
+        '200':
+          description: Attached.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vehicle' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/NotOwner' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Vehicles]
+      operationId: clearVehiclePhoto
+      responses:
+        '200':
+          description: Removed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vehicle' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/NotOwner' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   # ── Tracks ──────────────────────────────────────────────────────────────────────────
   /tracks:
@@ -468,6 +624,11 @@ components:
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/ValidationProblemDetails' }
+    StorageUnavailable:
+      description: This server has no photo storage configured.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
     TooManyRequests:
       description: Rate limited. Retry after the number of seconds in `Retry-After`.
       headers:
@@ -561,6 +722,103 @@ components:
         displayName: { type: string }
         role: { type: string, enum: [Driver, Admin] }
 
+    # ── Profile ──
+    Profile:
+      type: object
+      required: [id, email, displayName, role, memberSince]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        role: { type: string, enum: [Driver, Admin] }
+        bio: { type: [string, 'null'], maxLength: 500 }
+        country: { type: [string, 'null'], maxLength: 60 }
+        avatarUrl: { type: [string, 'null'], format: uri }
+        memberSince: { type: string, format: date-time }
+
+    ProfileUpdate:
+      type: object
+      properties:
+        displayName: { type: string, minLength: 2, maxLength: 100 }
+        bio: { type: string, maxLength: 500, description: Empty string clears. }
+        country: { type: string, maxLength: 60, description: Empty string clears. }
+
+    ProfileVehicle:
+      type: object
+      required: [id, manufacturer, model, year]
+      properties:
+        id: { type: string, format: uuid }
+        manufacturer: { type: string }
+        model: { type: string }
+        year: { type: integer }
+        photoUrl: { type: [string, 'null'], format: uri }
+
+    PersonalBest:
+      type: object
+      required: [trackId, trackName, country, trackType, bestLapMs, setAt, lapCount]
+      properties:
+        trackId: { type: string, format: uuid }
+        trackName: { type: string }
+        country: { type: string }
+        trackType: { $ref: '#/components/schemas/TrackType' }
+        bestLapMs: { type: integer, description: Fastest valid lap from any session, ranked or private. }
+        setAt: { type: string, format: date-time }
+        vehicle: { oneOf: [{ $ref: '#/components/schemas/ProfileVehicle' }, { type: 'null' }] }
+        lapCount: { type: integer }
+        rank: { type: [integer, 'null'], description: Public leaderboard position; null without a ranked standing. }
+        fieldSize: { type: [integer, 'null'] }
+        rankedLapMs: { type: [integer, 'null'], description: The time the rank is for. }
+
+    ProfileStats:
+      type: object
+      required: [sessionCount, lapCount, trackCount, vehicleCount, personalBests]
+      properties:
+        sessionCount: { type: integer, description: Non-voided sessions. }
+        lapCount: { type: integer, description: Valid laps (no signal gap) in non-voided sessions. }
+        trackCount: { type: integer }
+        vehicleCount: { type: integer }
+        distanceKm: { type: [number, 'null'], description: Valid laps times track length. }
+        firstSessionAt: { type: [string, 'null'], format: date-time }
+        lastSessionAt: { type: [string, 'null'], format: date-time }
+        mainVehicle: { oneOf: [{ $ref: '#/components/schemas/ProfileVehicle' }, { type: 'null' }] }
+        personalBests:
+          type: array
+          description: Ranked tracks first by position, then the rest by name.
+          items: { $ref: '#/components/schemas/PersonalBest' }
+
+    UploadRequest:
+      type: object
+      required: [kind, contentType]
+      properties:
+        kind: { type: string, enum: [Avatar, VehiclePhoto] }
+        vehicleId: { type: string, format: uuid, description: Required for VehiclePhoto. }
+        contentType: { type: string, enum: [image/jpeg, image/webp] }
+
+    UploadTarget:
+      type: object
+      required: [uploadUrl, path, publicUrl]
+      properties:
+        uploadUrl: { type: string, format: uri, description: PUT the bytes here. }
+        path: { type: string, description: 'Attach with PUT /me/avatar or /vehicles/{vehicleId}/photo.' }
+        publicUrl: { type: string, format: uri }
+
+    SetMedia:
+      type: object
+      required: [path]
+      properties:
+        path: { type: string, maxLength: 300 }
+
+    AccountExport:
+      type: object
+      description: Profile, vehicles, owned tracks with points, and sessions with laps and sectors.
+      required: [exportedAt, profile, vehicles, tracks, sessions]
+      properties:
+        exportedAt: { type: string, format: date-time }
+        profile: { $ref: '#/components/schemas/Profile' }
+        vehicles: { type: array, items: { $ref: '#/components/schemas/Vehicle' } }
+        tracks: { type: array, items: { type: object } }
+        sessions: { type: array, items: { type: object } }
+
     # ── Vehicles ── (fields are VehicleInformationData, unchanged)
     VehicleWrite:
       type: object
@@ -591,6 +849,7 @@ components:
             id: { type: string, format: uuid }
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
+            photoUrl: { type: [string, 'null'], format: uri, description: Public URL of the vehicle photo. }
 
     VehiclePage:
       allOf:

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using TrackBoard.Auth;
@@ -6,6 +7,7 @@ using TrackBoard.Data;
 using TrackBoard.Dtos;
 using TrackBoard.Entities;
 using TrackBoard.Mapping;
+using TrackBoard.Storage;
 
 namespace TrackBoard.Services;
 
@@ -33,9 +35,14 @@ public interface IVehicleService
 public class VehicleService(
     TrackBoardDbContext db,
     IResourceAuthorizer authorizer,
-    ITrackLeaderboardService leaderboards) : IVehicleService
+    ITrackLeaderboardService leaderboards,
+    IMediaStorage media) : IVehicleService
 {
-    private static readonly Expression<Func<Vehicle, VehicleResponse>> ToResponse =
+    /// <summary>
+    /// The response projection. Built per call because the photo URL depends on where the
+    /// media bucket lives; EF sends <paramref name="mediaBase"/> as a query parameter.
+    /// </summary>
+    public static Expression<Func<Vehicle, VehicleResponse>> Projection(string? mediaBase) =>
         v => new VehicleResponse(
             v.Id,
             v.OwnerId,
@@ -56,10 +63,17 @@ public class VehicleService(
             v.Transmission,
             v.SuspensionType,
             v.CreatedAt,
-            v.UpdatedAt);
+            v.UpdatedAt,
+            mediaBase == null || v.PhotoPath == null ? null : mediaBase + v.PhotoPath);
+
+    // The base is fixed for the life of the process, so each compiled form is built once.
+    private static readonly ConcurrentDictionary<string, Func<Vehicle, VehicleResponse>> Compiled = new();
+
+    private Expression<Func<Vehicle, VehicleResponse>> ToResponse => Projection(media.PublicBaseUrl);
 
     /// <summary>Same shape as <see cref="ToResponse"/>, for entities already in memory.</summary>
-    private static readonly Func<Vehicle, VehicleResponse> ToResponseInMemory = ToResponse.Compile();
+    private VehicleResponse ToResponseInMemory(Vehicle vehicle) =>
+        Compiled.GetOrAdd(media.PublicBaseUrl ?? string.Empty, b => Projection(b.Length == 0 ? null : b).Compile())(vehicle);
 
     public Task<PagedResult<VehicleResponse>> GetPagedAsync(
         PageQuery page,

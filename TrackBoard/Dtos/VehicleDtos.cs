@@ -22,7 +22,8 @@ public record VehicleResponse(
     string Transmission,
     string? SuspensionType,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? PhotoUrl = null);
 
 public record CreateVehicleRequest
 {

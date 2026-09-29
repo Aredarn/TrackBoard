@@ -66,6 +66,28 @@ public class VehiclesController(IVehicleService vehicles) : ControllerBase
             : Ok(vehicle);
     }
 
+    /// <summary>Attaches a photo uploaded through <c>POST /me/uploads</c>. Replaces and removes any previous one.</summary>
+    [HttpPut("{id:guid}/photo")]
+    [ProducesResponseType<VehicleResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<VehicleResponse>> SetPhoto(
+        Guid id,
+        [FromBody] SetMediaRequest request,
+        [FromServices] IProfileService profiles,
+        CancellationToken ct)
+        => Ok(await profiles.SetVehiclePhotoAsync(User.GetUserId(), id, request.Path, ct));
+
+    [HttpDelete("{id:guid}/photo")]
+    [ProducesResponseType<VehicleResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<VehicleResponse>> ClearPhoto(
+        Guid id,
+        [FromServices] IProfileService profiles,
+        CancellationToken ct)
+        => Ok(await profiles.SetVehiclePhotoAsync(User.GetUserId(), id, null, ct));
+
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

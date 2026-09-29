@@ -42,5 +42,8 @@ public class Vehicle : BaseEntity
 
     public string? SuspensionType { get; set; }
 
+    /// <summary>Object path in the media bucket. Set through its own endpoint, never by the sync upsert.</summary>
+    public string? PhotoPath { get; set; }
+
     public ICollection<Result> Results { get; set; } = [];
 }

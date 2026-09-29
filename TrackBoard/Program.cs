@@ -23,6 +23,7 @@ using TrackBoard.Data;
 using TrackBoard.Data.Interceptors;
 using TrackBoard.Entities;
 using TrackBoard.Services;
+using TrackBoard.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -256,6 +257,17 @@ builder.Services.AddScoped<IResultService, ResultService>();
 builder.Services.AddScoped<ITrackLeaderboardService, TrackLeaderboardService>();
 builder.Services.AddScoped<ITrackService, TrackService>();
 builder.Services.AddScoped<ISessionService, SessionService>();
+builder.Services.AddScoped<IProfileService, ProfileService>();
+builder.Services.AddScoped<IDriverService, DriverService>();
+
+// ── Media storage ────────────────────────────────────────────────────────────
+// Optional. Without Supabase__Url and Supabase__ServiceRoleKey the API runs normally and
+// the photo endpoints answer 503, so a local or test deployment needs no bucket.
+builder.Services
+    .AddOptions<MediaStorageOptions>()
+    .Bind(builder.Configuration.GetSection(MediaStorageOptions.SectionName));
+builder.Services.AddHttpClient<IMediaStorage, SupabaseMediaStorage>(client =>
+    client.Timeout = TimeSpan.FromSeconds(15));
 
 // ── Web ──────────────────────────────────────────────────────────────────────
 builder.Services

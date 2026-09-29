@@ -19,6 +19,21 @@ public class User : BaseEntity
 
     public UserRole Role { get; set; } = UserRole.Driver;
 
+    /// <summary>A line or two about the driver, shown on their profile.</summary>
+    public string? Bio { get; set; }
+
+    /// <summary>Free text as the driver writes it, e.g. "Hungary".</summary>
+    public string? Country { get; set; }
+
+    /// <summary>Object path in the media bucket, never a full URL: the bucket's host can move.</summary>
+    public string? AvatarPath { get; set; }
+
+    /// <summary>
+    /// Set when the driver deleted their account. The row survives as an anonymised tombstone
+    /// only because published tracks other drivers still time on must keep an owner.
+    /// </summary>
+    public DateTimeOffset? DeletedAt { get; set; }
+
     public ICollection<Vehicle> Vehicles { get; set; } = [];
 
     public ICollection<Result> Results { get; set; } = [];

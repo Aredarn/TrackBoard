@@ -96,6 +96,7 @@ Every route is under `/api/v1`. The full TrackPro contract is
 | Tracks | `/api/v1/tracks` | **public** reads of published tracks; owner writes |
 | Track leaderboard | `/api/v1/tracks/{id}/leaderboard` | **public**; a token adds your own `me` entry |
 | Sessions | `/api/v1/sessions` | owner only; `PUT` uploads a whole session with its laps |
+| Driver pages | `/api/v1/drivers/{id}` | **public**; name, country, bio, photo and standings on published tracks — never email or private data |
 
 On the public endpoints signing in is optional, but a token that is sent and fails
 validation gets a 401 rather than being treated as anonymous, so the app notices it needs
