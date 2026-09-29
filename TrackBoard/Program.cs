@@ -258,6 +258,7 @@ builder.Services.AddScoped<ITrackLeaderboardService, TrackLeaderboardService>();
 builder.Services.AddScoped<ITrackService, TrackService>();
 builder.Services.AddScoped<ISessionService, SessionService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
+builder.Services.AddScoped<IDriverService, DriverService>();
 
 // ── Media storage ────────────────────────────────────────────────────────────
 // Optional. Without Supabase__Url and Supabase__ServiceRoleKey the API runs normally and
