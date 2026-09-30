@@ -97,6 +97,15 @@ Every route is under `/api/v1`. The full TrackPro contract is
 | Track leaderboard | `/api/v1/tracks/{id}/leaderboard` | **public**; a token adds your own `me` entry |
 | Sessions | `/api/v1/sessions` | owner only; `PUT` uploads a whole session with its laps |
 | Driver pages | `/api/v1/drivers/{id}` | **public**; name, country, bio, photo and standings on published tracks — never email or private data |
+| Events | `/api/v1/events` | reading an event and its live `/board` is **public** (anyone with the link); create, edit and delete are the host's; `POST /join` with the 6-character code |
+
+**Events (track days).** A host creates an event on a published track with a time window and
+optional run groups, and hands out its join code. Every lap a joined driver drives on that track
+inside the window counts on the event board — joining is the consent, so private sessions count
+too; voided sessions and signal-gap laps never do. Sessions are not tagged with the event: the
+board is derived from track, driver and time, so the app needs no change to feed it. For a live
+board the app re-uploads the running session after each lap; every upload evicts the board's
+short cache through its track tag.
 
 On the public endpoints signing in is optional, but a token that is sent and fails
 validation gets a 401 rather than being treated as anonymous, so the app notices it needs

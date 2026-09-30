@@ -217,6 +217,20 @@ public class ProfileService(
             .AsSplitQuery()
             .ToListAsync(ct);
 
+        var events = await db.Events
+            .AsNoTracking()
+            .Where(e => e.HostId == userId || e.Entries.Any(x => x.UserId == userId))
+            .OrderBy(e => e.StartsAt)
+            .Select(e => new ExportEvent(
+                e.Id,
+                e.Name,
+                e.TrackId,
+                e.StartsAt,
+                e.EndsAt,
+                e.HostId == userId,
+                e.Entries.Where(x => x.UserId == userId && x.Group != null).Select(x => x.Group!.Name).FirstOrDefault()))
+            .ToListAsync(ct);
+
         return new AccountExportResponse(
             timeProvider.GetUtcNow(),
             ToResponse(user),
@@ -260,7 +274,8 @@ public class ProfileService(
                                 .Select(x => new SectorSplitDto { SectorIndex = x.SectorIndex, SplitMs = x.SplitMs })
                                 .ToList()))
                         .ToList()))
-                .ToList());
+                .ToList(),
+            events);
     }
 
     /// <remarks>
@@ -287,6 +302,16 @@ public class ProfileService(
         {
             // Children first: nothing here relies on the database cascading, so the order is
             // the same whatever the provider enforces.
+
+            // The driver leaves every event they joined, and events they host go entirely:
+            // an event is the host's, and nobody else can run it.
+            var hosted = db.Events.Where(e => e.HostId == userId).Select(e => e.Id);
+            await db.EventEntries
+                .Where(x => x.UserId == userId || hosted.Contains(x.EventId))
+                .ExecuteDeleteAsync(ct);
+            await db.EventGroups.Where(g => hosted.Contains(g.EventId)).ExecuteDeleteAsync(ct);
+            await db.Events.Where(e => e.HostId == userId).ExecuteDeleteAsync(ct);
+
             var sessionIds = db.Sessions.Where(s => s.OwnerId == userId).Select(s => s.Id);
             var lapIds = db.Laps.Where(l => sessionIds.Contains(l.SessionId)).Select(l => l.Id);
 
@@ -297,7 +322,9 @@ public class ProfileService(
             // With the driver's own sessions gone, any session left on one of their tracks
             // belongs to someone else — those tracks stay.
             var deletableTracks = db.Tracks
-                .Where(t => t.OwnerId == userId && !db.Sessions.Any(s => s.TrackId == t.Id))
+                .Where(t => t.OwnerId == userId
+                    && !db.Sessions.Any(s => s.TrackId == t.Id)
+                    && !db.Events.Any(e => e.TrackId == t.Id))
                 .Select(t => t.Id);
 
             await db.TrackPoints.Where(p => deletableTracks.Contains(p.TrackId)).ExecuteDeleteAsync(ct);
@@ -309,6 +336,7 @@ public class ProfileService(
 
             await db.RefreshTokens.Where(t => t.UserId == userId).ExecuteDeleteAsync(ct);
 
+            // A track another host's event runs on stays, like one other drivers have timed on.
             var stillReferenced =
                 await db.Tracks.AnyAsync(t => t.OwnerId == userId, ct)
                 || await db.Results.AnyAsync(r => r.UserId == userId, ct)

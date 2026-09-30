@@ -198,6 +198,14 @@ public class SessionService(
         session.AppVersion = request.AppVersion;
         ApplyWeather(session, request.Weather);
 
+        if (!created)
+        {
+            // A re-upload that only adds laps leaves every column unchanged, so EF would skip
+            // the row and UpdatedAt would stand still. The event board reads UpdatedAt to tell
+            // who is still on track, so every upload counts as activity.
+            db.Entry(session).State = EntityState.Modified;
+        }
+
         db.Laps.AddRange(request.Laps.Select(l => new Lap
         {
             SessionId = id,

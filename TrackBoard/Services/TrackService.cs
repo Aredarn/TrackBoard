@@ -207,6 +207,13 @@ public class TrackService(
                 "TrackInUse");
         }
 
+        if (await db.Events.AnyAsync(e => e.TrackId == id, ct))
+        {
+            throw new ConflictException(
+                "An event runs on this track, so it cannot be deleted. Delete the event first.",
+                "TrackInUse");
+        }
+
         // The owner's own sessions survive; the database nulls their track reference.
         db.Tracks.Remove(track);
         await db.SaveChangesAsync(ct);

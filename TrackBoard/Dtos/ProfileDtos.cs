@@ -147,10 +147,22 @@ public record ExportTrack(
     TrackVisibility Visibility,
     IReadOnlyList<ExportTrackPoint> Points);
 
+/// <param name="Hosted">True for events the caller hosts; false for ones they joined.</param>
+/// <param name="Group">The caller's run group, when they joined one.</param>
+public record ExportEvent(
+    Guid Id,
+    string Name,
+    Guid TrackId,
+    DateTimeOffset StartsAt,
+    DateTimeOffset EndsAt,
+    bool Hosted,
+    string? Group);
+
 /// <summary>Everything the server holds about the caller, in one document.</summary>
 public record AccountExportResponse(
     DateTimeOffset ExportedAt,
     ProfileResponse Profile,
     IReadOnlyList<VehicleResponse> Vehicles,
     IReadOnlyList<ExportTrack> Tracks,
-    IReadOnlyList<ExportSession> Sessions);
+    IReadOnlyList<ExportSession> Sessions,
+    IReadOnlyList<ExportEvent> Events);
