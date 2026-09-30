@@ -36,6 +36,19 @@ public static class CacheKeys
             CultureInfo.InvariantCulture,
             $"trackboard:{Version}:standings:track:{trackId}");
 
+    /// <summary>
+    /// An event's live board. Also tagged with its track, so any lap uploaded on that track
+    /// evicts it without the session code knowing events exist.
+    /// </summary>
+    public static string EventBoard(Guid eventId) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"trackboard:{Version}:board:event:{eventId}");
+
+    /// <summary>Tag on every entry derived from an event's entries or groups.</summary>
+    public static string EventTag(Guid eventId) =>
+        string.Create(CultureInfo.InvariantCulture, $"event:{eventId}");
+
     /// <summary>Tag on every entry derived from a track's laps.</summary>
     public static string TrackTag(Guid trackId) =>
         string.Create(CultureInfo.InvariantCulture, $"track:{trackId}");

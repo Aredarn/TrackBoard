@@ -34,6 +34,12 @@ public class TrackBoardDbContext(DbContextOptions<TrackBoardDbContext> options)
 
     public DbSet<LapSector> LapSectors => Set<LapSector>();
 
+    public DbSet<TrackEvent> Events => Set<TrackEvent>();
+
+    public DbSet<EventGroup> EventGroups => Set<EventGroup>();
+
+    public DbSet<EventEntry> EventEntries => Set<EventEntry>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
