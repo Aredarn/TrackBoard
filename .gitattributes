@@ -61,3 +61,9 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+###############################################################################
+# .editorconfig requires CRLF, and `dotnet format --verify-no-changes` in CI
+# enforces it. Without this the Linux runner checks out LF and fails on every file.
+###############################################################################
+*.cs text eol=crlf
