@@ -50,17 +50,21 @@ public class ProfileController(IProfileService profiles) : ControllerBase
     }
 
     /// <summary>
-    /// Permanently deletes the account and its data. Irreversible; the app asks the driver
-    /// to type a confirmation before calling this.
+    /// Permanently deletes the account and its data. Irreversible: the request carries the
+    /// account password as well as the token, and the app asks the driver to type a
+    /// confirmation before calling this.
     /// </summary>
     [HttpDelete]
     // Destructive and account-level, so it shares the credential endpoints' tight budget.
     [EnableRateLimiting(RateLimitPolicies.Authentication)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> Delete(CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> Delete([FromBody] DeleteAccountRequest request, CancellationToken ct)
     {
-        await profiles.DeleteAccountAsync(User.GetUserId(), ct);
+        await profiles.DeleteAccountAsync(User.GetUserId(), request.Password, ct);
         return NoContent();
     }
 

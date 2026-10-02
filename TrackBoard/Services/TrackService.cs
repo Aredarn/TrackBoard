@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TrackBoard.Auth;
 using TrackBoard.Common;
 using TrackBoard.Data;
@@ -31,7 +32,8 @@ public interface ITrackService
 public class TrackService(
     TrackBoardDbContext db,
     IResourceAuthorizer authorizer,
-    ITrackLeaderboardService leaderboards) : ITrackService
+    ITrackLeaderboardService leaderboards,
+    IOptions<QuotaSettings> quotas) : ITrackService
 {
     private const double KmPerDegreeLatitude = 111.32;
 
@@ -121,6 +123,13 @@ public class TrackService(
 
         var track = await db.Tracks.FirstOrDefaultAsync(t => t.Id == id, ct);
         var created = track is null;
+
+        if (created)
+        {
+            await db.Tracks
+                .Where(t => t.OwnerId == callerId)
+                .EnsureUnderQuotaAsync(quotas.Value.MaxTracks, "tracks", ct);
+        }
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 

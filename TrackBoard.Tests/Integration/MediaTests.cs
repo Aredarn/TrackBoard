@@ -163,7 +163,7 @@ public class MediaTests(MediaApiFactory factory) : TrackProTestBase(factory), IC
         var photo = await UploadAsync(client, new { kind = "VehiclePhoto", vehicleId = vehicle, contentType = "image/jpeg" });
         await PutAsync<VehicleResponse>(client, $"/api/v1/vehicles/{vehicle}/photo", new { path = photo.Path });
 
-        (await client.DeleteAsync("/api/v1/me")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await DeleteAccountAsync(client)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         _media.Deleted.ShouldContain(avatar.Path);
         _media.Deleted.ShouldContain(photo.Path);

@@ -154,6 +154,15 @@ builder.Services.AddScoped<IResourceAuthorizer, ResourceAuthorizer>();
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 
+builder.Services
+    .AddOptions<LockoutSettings>()
+    .Bind(builder.Configuration.GetSection(LockoutSettings.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+// One instance for the whole process: the failure counts must outlive any single request.
+builder.Services.AddSingleton<ILoginAttemptTracker, LoginAttemptTracker>();
+
 // ── Rate limiting ────────────────────────────────────────────────────────────
 builder.Services
     .AddOptions<RateLimitSettings>()
@@ -243,6 +252,13 @@ builder.Services.AddCors(options =>
             policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod();
         }
     }));
+
+// ── Quotas ───────────────────────────────────────────────────────────────────
+builder.Services
+    .AddOptions<QuotaSettings>()
+    .Bind(builder.Configuration.GetSection(QuotaSettings.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 // ── Application services ─────────────────────────────────────────────────────
 builder.Services.AddScoped<IPointsCalculator, PointsCalculator>();

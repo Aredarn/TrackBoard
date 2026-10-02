@@ -282,7 +282,7 @@ public class EventTests(TrackBoardApiFactory factory) : TrackProTestBase(factory
 
         (await owner.DeleteAsync($"/api/v1/tracks/{track.Id}")).StatusCode.ShouldBe(HttpStatusCode.Conflict);
 
-        (await host.DeleteAsync("/api/v1/me")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await DeleteAccountAsync(host)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         (await CreateClient().GetAsync($"/api/v1/events/{ev.Event.Id}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await owner.DeleteAsync($"/api/v1/tracks/{track.Id}")).StatusCode.ShouldBe(HttpStatusCode.NoContent);

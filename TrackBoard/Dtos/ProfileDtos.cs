@@ -31,6 +31,17 @@ public record UpdateProfileRequest
     public string? Country { get; init; }
 }
 
+/// <summary>
+/// Deleting an account cannot be undone, so the access token alone is not enough: the caller
+/// proves they know the password too.
+/// </summary>
+public record DeleteAccountRequest
+{
+    [Required]
+    [MaxLength(128)]
+    public string Password { get; init; } = string.Empty;
+}
+
 public enum MediaKind
 {
     Avatar,

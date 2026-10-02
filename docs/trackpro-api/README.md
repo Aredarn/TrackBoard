@@ -128,6 +128,18 @@ Every endpoint moves under **`/api/v1`**, auth included. Users update a phone ap
 own schedule, so the server will have to serve old clients for a long time. Moving the
 routes costs nothing today and a great deal once apps are in the wild.
 
+### 9. Limits the app has to handle
+
+- **Quotas.** An account may own 100 tracks, 25 vehicles, 1,000 sessions and 100 hosted
+  events. Only *creating* a new one counts: re-uploading or editing what exists never hits a
+  quota, so a driver at the limit can still sync everything they have. Going over is
+  `409` with `code: QuotaExceeded`; the app should say so and stop retrying that item.
+- **Wrong passwords.** Ten wrong passwords within fifteen minutes lock the account for
+  fifteen: sign-in answers `429` with `Retry-After`, even for the right password. Deleting
+  the account counts toward the same budget.
+- **Deleting an account needs the password** in the request body, on top of the token. A
+  wrong one is `403`, not `401`: the session is fine, the typed password is not.
+
 ---
 
 ## Mapping from TrackPro's Room schema (v8)

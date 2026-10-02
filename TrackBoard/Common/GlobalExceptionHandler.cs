@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
@@ -46,6 +47,12 @@ public sealed partial class GlobalExceptionHandler(
                 "Access denied",
                 forbidden.Message),
 
+            // Same title as the rate limiter's own 429, so a client treats both alike.
+            TooManyRequestsException tooMany => (
+                StatusCodes.Status429TooManyRequests,
+                "Too many requests",
+                tooMany.Message),
+
             ServiceUnavailableException unavailable => (
                 StatusCodes.Status503ServiceUnavailable,
                 "Not available on this server",
@@ -92,6 +99,13 @@ public sealed partial class GlobalExceptionHandler(
         if (exception is ConflictException { Code: { } code })
         {
             problem.Extensions["code"] = code;
+        }
+
+        if (exception is TooManyRequestsException { RetryAfter: var retryAfter })
+        {
+            problem.Extensions["code"] = TooManyRequestsException.LockedCode;
+            httpContext.Response.Headers.RetryAfter =
+                ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
         }
 
         return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext

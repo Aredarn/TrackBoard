@@ -85,6 +85,22 @@ public abstract class ApiTestBase : IClassFixture<TrackBoardApiFactory>
     protected static void Authenticate(HttpClient client, string accessToken) =>
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
+    /// <summary>
+    /// Deleting an account takes the password in the request body, which
+    /// <see cref="HttpClient.DeleteAsync(string)"/> has no way to send.
+    /// </summary>
+    protected static async Task<HttpResponseMessage> DeleteAccountAsync(
+        HttpClient client,
+        string password = ValidPassword)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, "/api/v1/me")
+        {
+            Content = JsonContent.Create(new { password }, options: Json),
+        };
+
+        return await client.SendAsync(request);
+    }
+
     /// <summary>Reference data ids produced by <see cref="SeedSeriesAsync"/>.</summary>
     protected record SeededSeries(Guid PointsSchemeId, Guid CircuitId, Guid SeriesId, Guid RaceEventId);
 

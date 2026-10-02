@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TrackBoard.Auth;
 using TrackBoard.Common;
 using TrackBoard.Data;
@@ -36,7 +37,8 @@ public class VehicleService(
     TrackBoardDbContext db,
     IResourceAuthorizer authorizer,
     ITrackLeaderboardService leaderboards,
-    IMediaStorage media) : IVehicleService
+    IMediaStorage media,
+    IOptions<QuotaSettings> quotas) : IVehicleService
 {
     /// <summary>
     /// The response projection. Built per call because the photo URL depends on where the
@@ -124,6 +126,8 @@ public class VehicleService(
             throw new NotFoundException("User", ownerId);
         }
 
+        await EnsureVehicleQuotaAsync(ownerId, ct);
+
         var vehicle = VehicleMapper.ToEntity(request);
         vehicle.OwnerId = ownerId;
 
@@ -133,6 +137,11 @@ public class VehicleService(
         return await GetByIdAsync(vehicle.Id, ct)
             ?? throw new InvalidOperationException("Vehicle vanished immediately after insert.");
     }
+
+    private Task EnsureVehicleQuotaAsync(Guid ownerId, CancellationToken ct) =>
+        db.Vehicles
+            .Where(v => v.OwnerId == ownerId)
+            .EnsureUnderQuotaAsync(quotas.Value.MaxVehicles, "vehicles", ct);
 
     public async Task<UpsertResult<VehicleResponse>> UpsertAsync(
         Guid id,
@@ -145,6 +154,8 @@ public class VehicleService(
 
         if (vehicle is null)
         {
+            await EnsureVehicleQuotaAsync(callerId, ct);
+
             vehicle = new Vehicle { Id = id, OwnerId = callerId };
             db.Vehicles.Add(vehicle);
         }

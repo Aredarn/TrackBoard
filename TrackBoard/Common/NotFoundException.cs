@@ -32,6 +32,28 @@ public class UnauthorizedException(string message) : Exception(message);
 public class ForbiddenException(string message) : Exception(message);
 
 /// <summary>
+/// Thrown when an account has had too many failed password attempts and is locked for a
+/// while. Maps to 429 with a <c>Retry-After</c> header and the problem <c>code</c>
+/// <see cref="LockedCode"/>, which tells a client this apart from the plain rate limiter.
+/// </summary>
+public class TooManyRequestsException : Exception
+{
+    public const string LockedCode = "AccountLocked";
+
+    public TooManyRequestsException(TimeSpan retryAfter)
+        : base(Describe(retryAfter)) => RetryAfter = retryAfter;
+
+    public TimeSpan RetryAfter { get; }
+
+    private static string Describe(TimeSpan retryAfter)
+    {
+        var minutes = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalMinutes));
+
+        return $"Too many failed attempts. Try again in {minutes} {(minutes == 1 ? "minute" : "minutes")}.";
+    }
+}
+
+/// <summary>
 /// Thrown when an optional dependency the request needs is not configured on this
 /// deployment, e.g. photo storage. Maps to 503 so a client can say "not available here"
 /// rather than "something broke".

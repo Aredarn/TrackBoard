@@ -64,7 +64,7 @@ public class DriverProfileTests(TrackBoardApiFactory factory) : TrackProTestBase
         (await anonymous.GetAsync($"/api/v1/drivers/{Guid.NewGuid()}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
         var (client, auth) = await DriverAsync();
-        (await client.DeleteAsync("/api/v1/me")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await DeleteAccountAsync(client)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         (await anonymous.GetAsync($"/api/v1/drivers/{auth.User.Id}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }

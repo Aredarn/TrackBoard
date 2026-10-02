@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TrackBoard.Auth;
 using TrackBoard.Common;
 using TrackBoard.Data;
@@ -31,7 +32,8 @@ public interface ISessionService
 public class SessionService(
     TrackBoardDbContext db,
     IResourceAuthorizer authorizer,
-    ITrackLeaderboardService leaderboards) : ISessionService
+    ITrackLeaderboardService leaderboards,
+    IOptions<QuotaSettings> quotas) : ISessionService
 {
     private static readonly Expression<Func<Session, SessionSummaryResponse>> ToSummary =
         s => new SessionSummaryResponse
@@ -149,6 +151,12 @@ public class SessionService(
         {
             // A PUT to someone else's id is refused, never treated as an overwrite.
             await authorizer.EnsureAsync<IOwnedResource>(session, ResourceOperations.Update);
+        }
+        else
+        {
+            await db.Sessions
+                .Where(s => s.OwnerId == callerId)
+                .EnsureUnderQuotaAsync(quotas.Value.MaxSessions, "sessions", ct);
         }
 
         // An admin editing a session must not move it into the admin's own garage.

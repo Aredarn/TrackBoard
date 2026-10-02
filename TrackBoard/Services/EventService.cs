@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
+using Microsoft.Extensions.Options;
 using TrackBoard.Caching;
 using TrackBoard.Common;
 using TrackBoard.Data;
@@ -38,7 +39,11 @@ public interface IEventService
     Task RemoveEntryAsync(Guid id, Caller caller, Guid userId, CancellationToken ct);
 }
 
-public class EventService(TrackBoardDbContext db, HybridCache cache, TimeProvider time) : IEventService
+public class EventService(
+    TrackBoardDbContext db,
+    HybridCache cache,
+    TimeProvider time,
+    IOptions<QuotaSettings> quotas) : IEventService
 {
     /// <summary>No 0/O or 1/I/L, so a code read off a screen in the paddock cannot be mistyped.</summary>
     private const string CodeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -61,6 +66,10 @@ public class EventService(TrackBoardDbContext db, HybridCache cache, TimeProvide
         {
             throw new NotFoundException("Track", trackId);
         }
+
+        await db.Events
+            .Where(e => e.HostId == hostId)
+            .EnsureUnderQuotaAsync(quotas.Value.MaxHostedEvents, "hosted events", ct);
 
         var ev = new TrackEvent
         {

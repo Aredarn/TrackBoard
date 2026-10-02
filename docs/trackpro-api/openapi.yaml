@@ -76,7 +76,18 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/ProblemDetails' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '429':
+          description: >-
+            Rate limited, or the account is locked after too many wrong passwords (ten within
+            fifteen minutes locks it for fifteen). A locked account refuses even the right
+            password until `Retry-After` has passed. An address with no account locks the same
+            way.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
 
   /auth/refresh:
     post:
@@ -164,9 +175,25 @@ paths:
         Permanently deletes the account: sessions, laps, vehicles, private tracks, photos
         and refresh tokens. A published track other drivers have timed on is kept under an
         anonymised owner. The email becomes free to register again. Rate limited like login.
+        The body must carry the account password as well as the bearer token, so a stolen
+        access token cannot delete the account. A request with no JSON body is refused with
+        415, as an older client's would be.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeleteAccountRequest' }
       responses:
         '204': { description: Deleted. The app should drop its tokens. }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: >-
+            The password is wrong. Deliberately not 401, which a client reads as an expired
+            session. Wrong guesses here count toward the same lockout as sign-in.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /me/stats:
@@ -653,7 +680,8 @@ components:
           type: string
           description: >-
             Stable identifier on some 409s, for the app to branch on without parsing the
-            message: TrackGeometryLocked, TrackInUse, VehicleInUse.
+            message: TrackGeometryLocked, TrackInUse, VehicleInUse, QuotaExceeded. Also on
+            the 429 for a locked account: AccountLocked (the plain rate limiter has none).
 
     ValidationProblemDetails:
       allOf:
@@ -735,6 +763,12 @@ components:
         country: { type: [string, 'null'], maxLength: 60 }
         avatarUrl: { type: [string, 'null'], format: uri }
         memberSince: { type: string, format: date-time }
+
+    DeleteAccountRequest:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string, maxLength: 128, description: The account's current password. }
 
     ProfileUpdate:
       type: object

@@ -186,7 +186,7 @@ public class ProfileTests(TrackBoardApiFactory factory) : TrackProTestBase(facto
         var track = await CreateTrackAsync(client);
         await UploadSessionAsync(client, SessionBody(track.Id, [Lap(1, 90_000)], vehicle));
 
-        (await client.DeleteAsync("/api/v1/me")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await DeleteAccountAsync(client)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         // The still-valid access token no longer opens anything.
         (await client.GetAsync("/api/v1/me")).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
@@ -215,7 +215,7 @@ public class ProfileTests(TrackBoardApiFactory factory) : TrackProTestBase(facto
         var (guest, guestAuth) = await DriverAsync("Guest");
         await UploadSessionAsync(guest, SessionBody(track.Id, [Lap(1, 85_000)]));
 
-        (await builder.DeleteAsync("/api/v1/me")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await DeleteAccountAsync(builder)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         var board = await LeaderboardAsync(CreateClient(), track.Id);
         board.Entries.Select(e => e.UserId).ShouldBe([guestAuth.User.Id]);

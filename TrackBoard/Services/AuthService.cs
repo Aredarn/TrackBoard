@@ -23,6 +23,7 @@ public partial class AuthService(
     TrackBoardDbContext db,
     ITokenService tokens,
     IPasswordHasher<User> passwordHasher,
+    ILoginAttemptTracker lockout,
     TimeProvider timeProvider,
     ILogger<AuthService> logger) : IAuthService
 {
@@ -61,13 +62,23 @@ public partial class AuthService(
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken ct)
     {
         var email = Normalise(request.Email);
+
+        // First, so a locked address costs no hashing and a correct password cannot end the
+        // lock early: that would leave the lock no obstacle to someone guessing.
+        if (lockout.GetRetryAfter(email) is { } retryAfter)
+        {
+            throw new TooManyRequestsException(retryAfter);
+        }
+
         var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
 
         if (user is null)
         {
             // Hash anyway so an unknown address and a wrong password take similar time;
-            // otherwise response latency alone reveals which accounts exist.
+            // otherwise response latency alone reveals which accounts exist. Failures are
+            // counted for the same reason: an unknown address must lock like a real one.
             passwordHasher.HashPassword(new User(), request.Password);
+            lockout.RecordFailure(email);
             throw new UnauthorizedException(InvalidCredentials);
         }
 
@@ -76,8 +87,11 @@ public partial class AuthService(
 
         if (verification == PasswordVerificationResult.Failed)
         {
+            lockout.RecordFailure(email);
             throw new UnauthorizedException(InvalidCredentials);
         }
+
+        lockout.Reset(email);
 
         if (verification == PasswordVerificationResult.SuccessRehashNeeded)
         {

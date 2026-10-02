@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TrackBoard.Auth;
 using TrackBoard.Common;
@@ -19,10 +20,11 @@ public interface IProfileService
     Task<AccountExportResponse> ExportAsync(Guid userId, CancellationToken ct);
 
     /// <summary>
-    /// Removes the account and everything it owns. See the implementation for the one case
-    /// where an anonymised row is kept instead.
+    /// Removes the account and everything it owns, once <paramref name="password"/> is
+    /// confirmed. See the implementation for the one case where an anonymised row is kept
+    /// instead.
     /// </summary>
-    Task DeleteAccountAsync(Guid userId, CancellationToken ct);
+    Task DeleteAccountAsync(Guid userId, string password, CancellationToken ct);
 
     Task<UploadTargetResponse> CreateUploadAsync(Guid userId, CreateUploadRequest request, CancellationToken ct);
 
@@ -37,6 +39,8 @@ public class ProfileService(
     IResourceAuthorizer authorizer,
     IVehicleService vehicles,
     ITrackLeaderboardService leaderboards,
+    IPasswordHasher<User> passwordHasher,
+    ILoginAttemptTracker lockout,
     TimeProvider timeProvider) : IProfileService
 {
     public async Task<ProfileResponse> GetAsync(Guid userId, CancellationToken ct) =>
@@ -286,9 +290,11 @@ public class ProfileService(
     /// other people's history, so in that case the row is kept but anonymised — no email, no
     /// name, no password that can ever verify — and the address becomes free to register again.
     /// </remarks>
-    public async Task DeleteAccountAsync(Guid userId, CancellationToken ct)
+    public async Task DeleteAccountAsync(Guid userId, string password, CancellationToken ct)
     {
         var user = await LoadLiveUserAsync(userId, tracking: true, ct);
+
+        ConfirmPassword(user, password);
 
         var mediaPaths = new List<string?> { user.AvatarPath };
         mediaPaths.AddRange(await db.Vehicles
@@ -498,6 +504,32 @@ public class ProfileService(
         }
 
         return user;
+    }
+
+    /// <summary>
+    /// Deleting an account is irreversible, so a stolen access token (good for an hour) must
+    /// not be enough to do it. Wrong guesses count against the same budget as sign-in:
+    /// otherwise this endpoint would be a way round the lockout.
+    /// </summary>
+    /// <remarks>
+    /// 403 rather than 401 for a wrong password: a client treats 401 as "your session has
+    /// expired" and signs the driver out, which is not what a typo should do.
+    /// </remarks>
+    private void ConfirmPassword(User user, string password)
+    {
+        if (lockout.GetRetryAfter(user.Email) is { } retryAfter)
+        {
+            throw new TooManyRequestsException(retryAfter);
+        }
+
+        if (passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password)
+            == PasswordVerificationResult.Failed)
+        {
+            lockout.RecordFailure(user.Email);
+            throw new ForbiddenException("The password is incorrect.");
+        }
+
+        lockout.Reset(user.Email);
     }
 
     private ProfileResponse ToResponse(User user) =>
